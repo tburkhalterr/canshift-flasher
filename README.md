@@ -50,8 +50,10 @@ npm run preview    # serve dist/ locally
 ```
 
 The `dist/` folder is a static SPA — host it on any HTTPS-capable origin.
-HTTPS is **required** by Web Serial; HTTP origins (other than `localhost`)
-cannot prompt for serial port access.
+
+> **HTTPS is required.** Web Serial silently refuses on plain HTTP origins
+> other than `localhost`. Use Traefik / Caddy / Let's Encrypt to terminate
+> TLS.
 
 ## Configuration
 
@@ -67,8 +69,15 @@ maintainer uploads it to the hosting origin on each firmware release.
 The USB flash path writes raw bytes to flash and bypasses the HMAC verification
 that the running firmware applies to OTA payloads. For v1 this residual risk is
 accepted because the user is on a trusted local USB connection. HMAC pre-flash
-verification is tracked as a v2 item in
-[tburkhalterr/CANShift#1081](https://github.com/tburkhalterr/CANShift/issues/1081).
+verification and a SHA-256 integrity check on the downloaded firmware are
+tracked as v2 items in
+[tburkhalterr/CANShift#1081](https://github.com/tburkhalterr/CANShift/issues/1081)
+and
+[tburkhalterr/canshift-flasher#4](https://github.com/tburkhalterr/canshift-flasher/issues/4).
+
+Security disclosures: see [`public/.well-known/security.txt`](./public/.well-known/security.txt).
+<!-- TODO: confirm contact — currently security@tmbk.ch -->
+
 
 ## Supported USB-UART bridges
 
