@@ -98,6 +98,27 @@ Security disclosures: see [`public/.well-known/security.txt`](./public/.well-kno
 <!-- TODO: confirm contact — currently security@tmbk.ch -->
 
 
+## Offline support
+
+The flasher ships a minimal hand-rolled service worker (`public/sw.js`) and
+a Web App Manifest (`public/manifest.webmanifest`), so it is installable as
+a PWA and the SPA shell loads offline.
+
+What is cached:
+
+- Navigation requests → network-first with `/index.html` as the offline
+  fallback (cached during the first visit).
+- `/assets/*` (Vite's hashed output) → cache-first / immutable.
+
+What is **not** cached (always requires network):
+
+- `/firmware/*` — never cached, never served stale.
+- Cross-origin requests (GitHub Releases, `canshift.tmbk.ch`, telemetry).
+
+In practice: the UI loads when you're offline, but the **firmware download
+still needs an internet connection** — the bytes are deliberately fetched
+fresh every time.
+
 ## Reset reliability
 
 Web Serial cannot drive `DTR/RTS` as reliably as Node's `serialport` library
