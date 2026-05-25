@@ -5,20 +5,26 @@ import { CanshiftLogo } from './components/CanshiftLogo'
 import { Flasher } from './components/Flasher'
 import { isWebSerialSupported } from './lib/browser'
 
+// Single-card layout mirrors canshift-studio's BootScreen treatment:
+// centered, dark, sober. Max-width keeps the card readable on wide screens.
 export function App(): ReactElement {
   const webSerialSupported = useMemo(() => isWebSerialSupported(), [])
 
   return (
-    <main className="mx-auto flex min-h-full max-w-2xl flex-col gap-8 px-6 py-10">
-      <header className="flex items-center justify-between">
+    <main className="mx-auto flex min-h-full w-full max-w-[480px] flex-col items-center gap-6 px-6 py-12">
+      <header className="flex flex-col items-center gap-3">
         <CanshiftLogo />
+        <p className="font-display text-xs uppercase tracking-[0.18em] text-text-muted">
+          Firmware Flasher
+        </p>
       </header>
 
-      <div className="rounded-lg border border-border bg-surface p-6 shadow-lg">
+      <section className="w-full rounded-md border border-border bg-surface p-6 shadow-lg">
         <Flasher webSerialSupported={webSerialSupported} />
-      </div>
+      </section>
 
-      <footer className="text-xs text-text-muted">
+      <footer className="flex flex-col items-center gap-2 text-center text-xs text-text-muted">
+        <p>First flash · Update · Recovery — same flow.</p>
         <p>
           Open source —{' '}
           <a
@@ -28,15 +34,6 @@ export function App(): ReactElement {
             className="underline-offset-4 hover:underline"
           >
             tburkhalterr/canshift-flasher
-          </a>
-          . Firmware source:{' '}
-          <a
-            href="https://github.com/tburkhalterr/CANShift"
-            target="_blank"
-            rel="noreferrer"
-            className="underline-offset-4 hover:underline"
-          >
-            tburkhalterr/CANShift
           </a>
           .
         </p>

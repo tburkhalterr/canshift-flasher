@@ -26,7 +26,7 @@ export function ProgressBar({ value, max, label }: ProgressBarProps): ReactEleme
         className="h-2 w-full overflow-hidden rounded-full bg-surface-2"
       >
         <div
-          className={`h-full rounded-full bg-primary transition-[width] duration-200 ${
+          className={`h-full rounded-full bg-status-danger transition-[width] duration-200 ${
             determinate ? '' : 'animate-pulse'
           }`}
           style={{ width: determinate ? `${pct}%` : '40%' }}

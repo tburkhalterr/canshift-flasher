@@ -36,6 +36,16 @@ const config: Config = {
         lg: '12px',
       },
       fontFamily: {
+        display: [
+          'Orbitron',
+          'ui-sans-serif',
+          'system-ui',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'Segoe UI',
+          'Roboto',
+          'sans-serif',
+        ],
         sans: [
           'ui-sans-serif',
           'system-ui',
