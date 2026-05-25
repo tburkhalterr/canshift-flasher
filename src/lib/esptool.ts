@@ -7,7 +7,7 @@ import {
   type LoaderOptions,
 } from 'esptool-js'
 
-import { FIRMWARE_FLASH_OFFSET, FLASH_BAUD } from '../constants'
+import { FLASH_BAUD, MERGED_FLASH_OFFSET } from '../constants'
 
 export interface FlashProgress {
   written: number
@@ -53,7 +53,7 @@ export async function flashFirmware(options: FlashRunOptions): Promise<void> {
     if (onChipInfo) onChipInfo(chip)
 
     const flashOptions: FlashOptions = {
-      fileArray: [{ data: firmware, address: FIRMWARE_FLASH_OFFSET }],
+      fileArray: [{ data: firmware, address: MERGED_FLASH_OFFSET }],
       flashMode: 'keep',
       flashFreq: 'keep',
       flashSize: 'keep',
