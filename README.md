@@ -98,6 +98,24 @@ Security disclosures: see [`public/.well-known/security.txt`](./public/.well-kno
 <!-- TODO: confirm contact — currently security@tmbk.ch -->
 
 
+## Reset reliability
+
+Web Serial cannot drive `DTR/RTS` as reliably as Node's `serialport` library
+(which `canshift-studio` uses from its Electron main process). To compensate,
+the flasher automatically retries up to three reset sequences before giving
+up:
+
+1. **classic** — DTR=boot, RTS=reset (canonical CH340/CH9102 wiring).
+2. **inverted** — RTS=boot, DTR=reset (some FTDI/PL2303 boards).
+3. **usb-jtag** — single reset pulse, for ESP32-S3 native USB.
+
+Timings are widened from esptool defaults (120 / 80 ms instead of 100 / 50 ms)
+to give slow CH340 boards on macOS extra latch time on the boot pin.
+
+This covers most macOS CH340 cases hands-off. Stubborn boards still need a
+manual **BOOT-button press**: hold BOOT, tap RESET (or unplug/replug USB
+while holding BOOT), then click **Retry**.
+
 ## Supported USB-UART bridges
 
 The Web Serial port picker is filtered to the chips shipped on supported
