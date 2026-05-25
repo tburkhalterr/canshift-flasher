@@ -1,9 +1,10 @@
 // src/hooks/useFlasher.ts
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { SUPPORTED_USB_FILTERS } from '../constants'
+import { FIRMWARE_URL, SUPPORTED_USB_FILTERS } from '../constants'
 import { flashFirmware, type FlashProgress } from '../lib/esptool'
 import { downloadFirmware, type FirmwareDownloadProgress } from '../lib/firmware'
+import { fetchLatestRelease, type Release } from '../lib/releases'
 import { classifyError, sendTelemetry } from '../lib/telemetry'
 
 const DISCONNECT_DURING_FLASH_MESSAGE =
@@ -34,6 +35,7 @@ export interface FlasherStatus {
   downloadProgress: FirmwareDownloadProgress | null
   flashProgress: FlashProgress | null
   log: string
+  release: Release | null
 }
 
 const INITIAL_STATUS: FlasherStatus = {
@@ -44,6 +46,7 @@ const INITIAL_STATUS: FlasherStatus = {
   downloadProgress: null,
   flashProgress: null,
   log: '',
+  release: null,
 }
 
 export interface FlasherActions {
@@ -60,6 +63,10 @@ export function useFlasher(): FlasherStatus & FlasherActions {
   const logBufferRef = useRef<string>('')
   const flashDisconnectHandlerRef = useRef<((event: Event) => void) | null>(null)
   const downloadAbortRef = useRef<AbortController | null>(null)
+  // Mirror of `status.release` for use inside `flash()` without re-creating
+  // the callback (and therefore re-binding the disconnect handler) every
+  // time the release fetch settles.
+  const releaseRef = useRef<Release | null>(null)
 
   const detachFlashDisconnectHandler = useCallback(() => {
     const handler = flashDisconnectHandlerRef.current
@@ -91,7 +98,10 @@ export function useFlasher(): FlasherStatus & FlasherActions {
     detachFlashDisconnectHandler()
     portRef.current = null
     logBufferRef.current = ''
-    setStatus({ ...INITIAL_STATUS })
+    // Preserve the resolved release across reset — it was fetched once on
+    // mount and re-fetching on every "Flash again" would just hit the rate
+    // limit for no UX benefit.
+    setStatus((prev) => ({ ...INITIAL_STATUS, release: prev.release }))
   }, [detachFlashDisconnectHandler])
 
   const reselectPort = useCallback(async () => {
@@ -139,7 +149,7 @@ export function useFlasher(): FlasherStatus & FlasherActions {
       void sendTelemetry({
         outcome: 'failed',
         chipFamily: detectedChip,
-        firmwareVersion: null,
+        firmwareVersion: releaseRef.current?.version ?? null,
         durationMs: Math.round(performance.now() - startedAt),
         errorClass: 'disconnect',
       })
@@ -148,10 +158,32 @@ export function useFlasher(): FlasherStatus & FlasherActions {
     navigator.serial.addEventListener('disconnect', disconnectHandler)
 
     try {
-      appendLog('Downloading firmware...\n')
-      const { bytes } = await downloadFirmware((dl) => {
-        setStatus((prev) => ({ ...prev, downloadProgress: dl }))
-      }, abortController.signal)
+      const release = releaseRef.current
+      const firmwareUrl = release?.firmwareAsset?.url ?? null
+      if (release && firmwareUrl) {
+        appendLog(`Downloading firmware v${release.version}...\n`)
+      } else {
+        if (release && !firmwareUrl) {
+          // Release metadata loaded but the merged asset was missing —
+          // fall back to FIRMWARE_URL so the user still gets a working flow.
+          console.warn(
+            'Latest release has no firmware asset matching the merged image pattern — falling back to FIRMWARE_URL.',
+          )
+          appendLog('Latest release missing firmware asset — falling back to static URL.\n')
+        } else if (!release) {
+          console.warn('Release metadata unavailable — falling back to FIRMWARE_URL.')
+          appendLog('Release metadata unavailable — falling back to static URL.\n')
+        }
+        appendLog('Downloading firmware...\n')
+      }
+      const downloadUrl = firmwareUrl ?? FIRMWARE_URL
+      const { bytes } = await downloadFirmware(
+        downloadUrl,
+        (dl) => {
+          setStatus((prev) => ({ ...prev, downloadProgress: dl }))
+        },
+        abortController.signal,
+      )
       appendLog(`Downloaded ${bytes.byteLength} bytes.\n`)
 
       // Once writeFlash is about to start, cancellation is no longer offered —
@@ -177,7 +209,7 @@ export function useFlasher(): FlasherStatus & FlasherActions {
       void sendTelemetry({
         outcome: 'success',
         chipFamily: detectedChip,
-        firmwareVersion: null,
+        firmwareVersion: releaseRef.current?.version ?? null,
         durationMs: Math.round(performance.now() - startedAt),
         errorClass: null,
       })
@@ -191,11 +223,11 @@ export function useFlasher(): FlasherStatus & FlasherActions {
       if (err instanceof DOMException && err.name === 'AbortError') {
         portRef.current = null
         logBufferRef.current = ''
-        setStatus({ ...INITIAL_STATUS })
+        setStatus((prev) => ({ ...INITIAL_STATUS, release: prev.release }))
         void sendTelemetry({
           outcome: 'cancelled',
           chipFamily: detectedChip,
-          firmwareVersion: null,
+          firmwareVersion: releaseRef.current?.version ?? null,
           durationMs: Math.round(performance.now() - startedAt),
           errorClass: 'cancelled',
         })
@@ -207,7 +239,7 @@ export function useFlasher(): FlasherStatus & FlasherActions {
       void sendTelemetry({
         outcome: 'failed',
         chipFamily: detectedChip,
-        firmwareVersion: null,
+        firmwareVersion: releaseRef.current?.version ?? null,
         durationMs: Math.round(performance.now() - startedAt),
         errorClass: classifyError(message),
       })
@@ -228,6 +260,26 @@ export function useFlasher(): FlasherStatus & FlasherActions {
         navigator.serial.removeEventListener('disconnect', handler)
         flashDisconnectHandlerRef.current = null
       }
+    }
+  }, [])
+
+  // Fire-and-forget release metadata fetch on mount. The flash flow doesn't
+  // block on this — a failed lookup falls back to FIRMWARE_URL — but having
+  // the version + notes ready in `idle` state is the whole point of #14.
+  useEffect(() => {
+    let cancelled = false
+    void fetchLatestRelease()
+      .then((release) => {
+        if (cancelled) return
+        releaseRef.current = release
+        setStatus((prev) => ({ ...prev, release }))
+      })
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err)
+        console.warn('Failed to fetch latest release metadata:', message)
+      })
+    return () => {
+      cancelled = true
     }
   }, [])
 

@@ -11,10 +11,17 @@ export const SUPPORTED_USB_FILTERS: SerialPortFilter[] = [
 ]
 
 /**
- * Where the flasher fetches the latest firmware binary.
- * Configurable via VITE_FIRMWARE_URL — defaults to the canonical hosting
- * origin (canshift.tmbk.ch/firmware/latest.bin). The user uploads a new
- * binary here on each firmware release (separate GHA workflow they maintain).
+ * Canonical GitHub repository hosting CANShift firmware releases.
+ * Used by `fetchLatestRelease` to pull release metadata + asset URLs.
+ */
+export const GITHUB_REPO = 'tburkhalterr/CANShift'
+
+/**
+ * @deprecated Static fallback URL used only when the GitHub Releases API is
+ * unreachable. The default path is now `fetchLatestRelease()` → use the
+ * release's `firmwareAsset.url`. Keep `VITE_FIRMWARE_URL` for back-compat
+ * with deployments that pinned a self-hosted mirror — it gets the same
+ * mandatory SHA-256 verification against a sibling `.sha256` file.
  */
 export const FIRMWARE_URL: string =
   (import.meta.env.VITE_FIRMWARE_URL as string | undefined) ??

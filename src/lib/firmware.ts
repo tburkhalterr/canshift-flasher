@@ -1,5 +1,5 @@
 // src/lib/firmware.ts
-import { FIRMWARE_BINARY_MAX_BYTES, FIRMWARE_URL } from '../constants'
+import { FIRMWARE_BINARY_MAX_BYTES } from '../constants'
 
 export interface FirmwareDownloadProgress {
   loaded: number
@@ -12,23 +12,24 @@ export interface FirmwareBinary {
 }
 
 /**
- * Stream-download the firmware binary from FIRMWARE_URL, surfacing byte
- * progress so the UI can render a determinate bar when Content-Length is
- * present (and an indeterminate one otherwise).
+ * Stream-download a firmware binary from `url`, surfacing byte progress so
+ * the UI can render a determinate bar when Content-Length is present (and
+ * an indeterminate one otherwise).
  *
- * TODO #1081 v2: HMAC-verify the payload before handing it to esptool.
- * The firmware itself HMAC-verifies any OTA payload at install time, but
- * the USB flash path writes raw bytes to flash and bypasses that gate.
- * For v1 we accept the residual risk (user is on a trusted local USB link).
+ * Hardening: caller MUST verify the downloaded bytes against a published
+ * SHA-256 manifest before handing them to esptool. See `verifyFirmwareSha256`
+ * in `./integrity.ts` — the HMAC pre-flash gate tracked in
+ * tburkhalterr/CANShift#1081 is a separate, additional hardening item.
  */
 export async function downloadFirmware(
+  url: string,
   onProgress: (p: FirmwareDownloadProgress) => void,
   signal?: AbortSignal,
 ): Promise<FirmwareBinary> {
   const requestInit: RequestInit = { cache: 'no-store' }
   if (signal) requestInit.signal = signal
 
-  const response = await fetch(FIRMWARE_URL, requestInit)
+  const response = await fetch(url, requestInit)
   if (!response.ok) {
     throw new Error(`Firmware download failed: HTTP ${response.status} ${response.statusText}`)
   }

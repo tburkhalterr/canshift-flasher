@@ -8,6 +8,7 @@ import {
   formatBytes,
   formatPortInfo,
 } from '../lib/format'
+import type { Release } from '../lib/releases'
 
 import { LogStream } from './LogStream'
 import { ProgressBar } from './ProgressBar'
@@ -16,9 +17,10 @@ interface LogContext {
   log: string
   chipInfo: string | null
   port: SerialPort | null
+  release: Release | null
 }
 
-function downloadLogReport({ log, chipInfo, port }: LogContext): void {
+function downloadLogReport({ log, chipInfo, port, release }: LogContext): void {
   const timestamp = new Date()
   const blob = buildLogBlob({
     log,
@@ -26,6 +28,7 @@ function downloadLogReport({ log, chipInfo, port }: LogContext): void {
     portInfo: port ? formatPortInfo(port) : null,
     userAgent: navigator.userAgent,
     timestamp,
+    firmwareVersion: release?.version ?? null,
   })
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
@@ -62,7 +65,13 @@ export function Flasher({ webSerialSupported }: FlasherProps): ReactElement {
 
   switch (flasher.state) {
     case 'idle':
-      return <IdleView onConnect={flasher.selectPort} errorMessage={flasher.errorMessage} />
+      return (
+        <IdleView
+          onConnect={flasher.selectPort}
+          errorMessage={flasher.errorMessage}
+          release={flasher.release}
+        />
+      )
     case 'ready':
       return (
         <ReadyView
@@ -88,6 +97,7 @@ export function Flasher({ webSerialSupported }: FlasherProps): ReactElement {
           log={flasher.log}
           chipInfo={flasher.chipInfo}
           port={flasher.port}
+          release={flasher.release}
         />
       )
     case 'failed':
@@ -99,6 +109,7 @@ export function Flasher({ webSerialSupported }: FlasherProps): ReactElement {
           log={flasher.log}
           chipInfo={flasher.chipInfo}
           port={flasher.port}
+          release={flasher.release}
         />
       )
   }
@@ -124,9 +135,41 @@ function UnsupportedBrowser(): ReactElement {
 interface IdleViewProps {
   onConnect: () => void
   errorMessage: string | null
+  release: Release | null
 }
 
-function IdleView({ onConnect, errorMessage }: IdleViewProps): ReactElement {
+function formatPublishedDate(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const yyyy = d.getUTCFullYear().toString()
+  const mm = (d.getUTCMonth() + 1).toString().padStart(2, '0')
+  const dd = d.getUTCDate().toString().padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+function ReleaseSummary({ release }: { release: Release }): ReactElement {
+  return (
+    <div className="space-y-2 rounded-md border border-border bg-surface-2 px-4 py-3 text-sm text-text-dim">
+      <div>
+        Latest: <span className="font-mono text-text">v{release.version}</span>
+        <span className="text-text-muted">
+          {' '}
+          (published {formatPublishedDate(release.publishedAt)})
+        </span>
+      </div>
+      {release.notes.trim().length > 0 ? (
+        <details className="text-sm text-text-muted">
+          <summary className="cursor-pointer">Release notes</summary>
+          <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded border border-border bg-surface px-3 py-2 font-mono text-xs text-text-dim">
+            {release.notes}
+          </pre>
+        </details>
+      ) : null}
+    </div>
+  )
+}
+
+function IdleView({ onConnect, errorMessage, release }: IdleViewProps): ReactElement {
   return (
     <section className="space-y-6">
       <div className="space-y-2">
@@ -136,6 +179,14 @@ function IdleView({ onConnect, errorMessage }: IdleViewProps): ReactElement {
           a normal update, and recovery from a broken update.
         </p>
       </div>
+
+      {release ? (
+        <ReleaseSummary release={release} />
+      ) : (
+        <div className="rounded-md border border-border bg-surface-2 px-4 py-3 text-sm text-text-muted">
+          Latest version: checking…
+        </div>
+      )}
 
       <button type="button" onClick={onConnect} className={PRIMARY_CTA_CLASSES}>
         Connect
@@ -252,15 +303,15 @@ interface SuccessViewProps {
   log: string
   chipInfo: string | null
   port: SerialPort | null
+  release: Release | null
 }
 
-function SuccessView({ onAgain, log, chipInfo, port }: SuccessViewProps): ReactElement {
+function SuccessView({ onAgain, log, chipInfo, port, release }: SuccessViewProps): ReactElement {
+  const heading = release ? `Flashed v${release.version} successfully` : 'Flashed successfully'
   return (
     <section className="space-y-6">
       <div className="space-y-2 rounded-md border border-success/60 bg-surface-2 px-4 py-4">
-        <h2 className="font-display text-lg font-bold tracking-wide text-success">
-          Flashed successfully
-        </h2>
+        <h2 className="font-display text-lg font-bold tracking-wide text-success">{heading}</h2>
         <p className="text-sm leading-relaxed text-text-dim">
           Your dash now hosts Studio at{' '}
           <span className="font-mono text-text">canshift.local</span>. Connect to the CANShift
@@ -282,7 +333,7 @@ function SuccessView({ onAgain, log, chipInfo, port }: SuccessViewProps): ReactE
           <LogStream log={log} />
           <button
             type="button"
-            onClick={() => downloadLogReport({ log, chipInfo, port })}
+            onClick={() => downloadLogReport({ log, chipInfo, port, release })}
             className="text-sm text-text-muted underline-offset-4 hover:underline"
           >
             Download log
@@ -300,6 +351,7 @@ interface FailedViewProps {
   log: string
   chipInfo: string | null
   port: SerialPort | null
+  release: Release | null
 }
 
 function FailedView({
@@ -309,6 +361,7 @@ function FailedView({
   log,
   chipInfo,
   port,
+  release,
 }: FailedViewProps): ReactElement {
   return (
     <section className="space-y-6">
@@ -334,7 +387,7 @@ function FailedView({
 
       <button
         type="button"
-        onClick={() => downloadLogReport({ log, chipInfo, port })}
+        onClick={() => downloadLogReport({ log, chipInfo, port, release })}
         className="text-sm text-text-muted underline-offset-4 hover:underline"
       >
         Download log
