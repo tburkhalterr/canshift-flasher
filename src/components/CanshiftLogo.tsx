@@ -1,20 +1,31 @@
 // src/components/CanshiftLogo.tsx
-import type { ReactElement } from 'react'
+import type { CSSProperties, ReactElement } from 'react'
 
-/**
- * Placeholder logo — replace src/components/CanshiftLogo.tsx with the
- * official CANShift mark when one is available (see README).
- */
+// Logo asset is served from /public — Vite copies it to dist/ root at build
+// time. Source of truth: canshift-studio/assets/CANShift_studio_logo.png.
+// If the studio's logo file moves, re-sync this PNG (see README).
+const LOGO_SRC = '/canshift_studio_logo.png'
+
+// Mirror the BootScreen treatment in canshift-studio
+// (src/components/shared/BootScreen.tsx): same width/maxHeight/objectFit so
+// the flasher and the studio splash feel like the same product surface.
+const LOGO_STYLE: CSSProperties = {
+  width: 240,
+  height: 'auto',
+  maxHeight: 80,
+  objectFit: 'contain',
+  userSelect: 'none',
+}
+
 export function CanshiftLogo(): ReactElement {
   return (
-    <div className="flex items-center gap-3" aria-label="CANShift">
-      <div
-        className="grid h-10 w-10 place-items-center rounded-md bg-primary text-primary-foreground"
-        aria-hidden="true"
-      >
-        <span className="font-mono text-lg font-bold">CS</span>
-      </div>
-      <span className="text-xl font-semibold tracking-tight">CANShift Flasher</span>
-    </div>
+    <img
+      src={LOGO_SRC}
+      alt="CANShift"
+      width={240}
+      height={80}
+      draggable={false}
+      style={LOGO_STYLE}
+    />
   )
 }

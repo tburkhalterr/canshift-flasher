@@ -2,7 +2,7 @@
 
 A single-screen web app whose only job is to **USB-flash an ESP32 with the
 latest CANShift dash firmware**. Hosted at
-[canshift.tmbk.app](https://canshift.tmbk.app).
+[canshift.tmbk.ch](https://canshift.tmbk.ch).
 
 This is a support project for the main
 [CANShift](https://github.com/tburkhalterr/CANShift) repo — kept separate to
@@ -18,7 +18,7 @@ Three use cases, **exactly one flow**:
 3. **Recovery** — after a failed OTA, broken boot loop, or KO partition.
    USB-flash gets the dash back to a clean state.
 
-User flow: plug dash → open canshift.tmbk.app → "Connect" → "Flash latest" → done.
+User flow: plug dash → open canshift.tmbk.ch → "Connect" → "Flash latest" → done.
 
 No version picker. The flasher always pulls the latest published firmware.
 
@@ -57,7 +57,7 @@ cannot prompt for serial port access.
 
 | Env var              | Default                                      | Purpose                              |
 | -------------------- | -------------------------------------------- | ------------------------------------ |
-| `VITE_FIRMWARE_URL`  | `https://canshift.tmbk.app/firmware/latest.bin` | Where to fetch the firmware binary from |
+| `VITE_FIRMWARE_URL`  | `https://canshift.tmbk.ch/firmware/latest.bin` | Where to fetch the firmware binary from |
 
 Set at build time. The firmware binary is **not** stored in this repo — the
 maintainer uploads it to the hosting origin on each firmware release.
@@ -81,10 +81,22 @@ CANShift boards (same allowlist as `canshift-studio`):
 | CH9102 | 0x1a86 | 0x55d4 |
 | CP210x | 0x10c4 | 0xea60 |
 
-## Replacing the placeholder logo
+## Brand assets
 
-`src/components/CanshiftLogo.tsx` ships with a placeholder "CS" badge. Replace
-the component body with the real CANShift mark when it's available.
+The flasher mirrors `canshift-studio`'s visual identity so it feels like a
+member of the same product family:
+
+| Asset                                    | Source of truth                                                       |
+| ---------------------------------------- | --------------------------------------------------------------------- |
+| Logo (`public/canshift_studio_logo.png`) | `canshift-studio/assets/CANShift_studio_logo.png`                     |
+| Favicon (`public/favicon.png`)           | `canshift-studio/assets/icon.png` (the Electron app icon)             |
+| Color tokens (`src/styles/tokens.css`)   | `canshift-core/src/design-tokens.ts` (`DARK_TOKENS.colors`)           |
+| Header font                              | [Orbitron](https://fonts.google.com/specimen/Orbitron) (Google Fonts) |
+
+The flasher intentionally does **not** depend on `canshift-core` or
+`canshift-studio` — values are copied. If Studio's identity moves, re-sync
+the logo PNG, the favicon, and the CSS variables in `src/styles/tokens.css`
+manually.
 
 ## Deploy
 

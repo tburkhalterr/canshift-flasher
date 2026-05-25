@@ -1,7 +1,13 @@
 /* src/styles/tokens.css
- * Mirrored from canshift-core/src/design-tokens.ts DARK_TOKENS.
- * Keep these in sync manually — the flasher intentionally has no
- * dependency on canshift-core (separate repo).
+ *
+ * Full mirror of canshift-core/src/design-tokens.ts DARK_TOKENS.colors.
+ * The flasher intentionally has no dependency on canshift-core (separate
+ * repo), so when DARK_TOKENS changes upstream this file must be re-synced
+ * by hand. Variable names match COLOR_KEY_TO_CSS_VAR in design-tokens.ts.
+ *
+ * Hex literals are intentional — the flasher's tailwind.config.ts maps
+ * Tailwind colors to `var(--*)` directly (no HSL channel split), so any
+ * CSS color format works here.
  */
 :root {
   --bg: #121212;
@@ -10,6 +16,12 @@
   --border: #333333;
   --primary: #ff4747;
   --primary-foreground: #ffffff;
+  --secondary: #292929;
+  --secondary-foreground: #ffffff;
+  --accent: #ff8800;
+  --accent-foreground: #ffffff;
+  --destructive: #ff0000;
+  --destructive-foreground: #ffffff;
   --text: #ffffff;
   --text-dim: #bababa;
   --text-muted: #8f8f8f;
@@ -19,6 +31,7 @@
   --status-danger: #e03030;
   --status-danger-dim: #3a1a1a;
   --scrim: #000000;
+  --ring: #ff4747;
 
   color-scheme: dark;
 }

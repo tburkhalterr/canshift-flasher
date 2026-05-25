@@ -7,6 +7,18 @@ import { formatBytes, formatPortInfo } from '../lib/format'
 import { LogStream } from './LogStream'
 import { ProgressBar } from './ProgressBar'
 
+// Visual language mirrors canshift-studio: Orbitron for headers (via
+// `font-display`), system sans for body, brand red (`status-danger`) for
+// primary CTAs, `border-border` + `bg-surface-2` for secondary surfaces.
+const PRIMARY_CTA_CLASSES =
+  'inline-flex items-center justify-center rounded-md bg-status-danger px-5 py-2.5 text-sm font-medium text-text shadow-sm transition hover:bg-status-danger/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-bg disabled:pointer-events-none disabled:opacity-50'
+
+const SECONDARY_CTA_CLASSES =
+  'inline-flex items-center justify-center rounded-md border border-border bg-surface-2 px-5 py-2.5 text-sm font-medium text-text transition hover:bg-surface focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-bg'
+
+const SECTION_HEADER_CLASSES =
+  'font-display text-lg font-bold tracking-wide text-text'
+
 interface FlasherProps {
   webSerialSupported: boolean
 }
@@ -54,13 +66,17 @@ export function Flasher({ webSerialSupported }: FlasherProps): ReactElement {
 
 function UnsupportedBrowser(): ReactElement {
   return (
-    <section className="space-y-4 rounded-lg border border-status-danger bg-status-danger-dim p-6">
-      <h2 className="text-lg font-semibold text-text">Chromium-based browser required</h2>
-      <p className="text-sm text-text-dim">
-        This flasher uses Web Serial, which is currently only available in Chromium browsers
-        (Chrome, Edge, Brave, Arc, Opera). Safari and Firefox do not implement the spec.
-      </p>
-      <p className="text-sm text-text-dim">Please reopen this page in a Chromium browser.</p>
+    <section className="space-y-4">
+      <div className="space-y-3 rounded-md border border-status-danger/60 bg-status-danger-dim px-5 py-5">
+        <h2 className={SECTION_HEADER_CLASSES}>Chromium browser required</h2>
+        <p className="text-sm leading-relaxed text-text-dim">
+          This flasher uses Web Serial, which is only available in Chromium-based browsers:
+          Chrome, Edge, Brave, Arc, Opera. Safari and Firefox do not implement the spec.
+        </p>
+        <p className="text-sm leading-relaxed text-text-muted">
+          Re-open this page in one of the browsers above to continue.
+        </p>
+      </div>
     </section>
   )
 }
@@ -74,18 +90,14 @@ function IdleView({ onConnect, errorMessage }: IdleViewProps): ReactElement {
   return (
     <section className="space-y-6">
       <div className="space-y-2">
-        <h2 className="text-xl font-semibold text-text">Flash your CANShift dash</h2>
-        <p className="text-sm text-text-dim">
+        <h2 className={SECTION_HEADER_CLASSES}>Flash your CANShift dash</h2>
+        <p className="text-sm leading-relaxed text-text-dim">
           Plug your dash in via USB and click Connect. The same flow covers a first flash,
           a normal update, and recovery from a broken update.
         </p>
       </div>
 
-      <button
-        type="button"
-        onClick={onConnect}
-        className="rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-bg"
-      >
+      <button type="button" onClick={onConnect} className={PRIMARY_CTA_CLASSES}>
         Connect
       </button>
 
@@ -104,13 +116,14 @@ function ReadyView({ port, onFlash, onReselect }: ReadyViewProps): ReactElement 
   return (
     <section className="space-y-6">
       <div className="rounded-md border border-border bg-surface-2 px-4 py-3 text-sm text-text-dim">
-        Connected: <span className="font-mono text-text">{port ? formatPortInfo(port) : '—'}</span>
+        Connected:{' '}
+        <span className="font-mono text-text">{port ? formatPortInfo(port) : '—'}</span>
       </div>
 
       <button
         type="button"
         onClick={onFlash}
-        className="w-full rounded-md bg-primary px-5 py-3 text-base font-semibold text-primary-foreground transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-bg"
+        className={`w-full ${PRIMARY_CTA_CLASSES} py-3 text-base font-semibold`}
       >
         Flash latest
       </button>
@@ -151,7 +164,7 @@ function FlashingView({
 
   return (
     <section className="space-y-6">
-      <div className="rounded-md border border-warning bg-surface-2 px-4 py-3 text-sm text-warning">
+      <div className="rounded-md border border-warning/60 bg-surface-2 px-4 py-3 text-sm text-warning">
         Do not unplug the dash while flashing.
       </div>
 
@@ -186,24 +199,22 @@ interface SuccessViewProps {
 function SuccessView({ onAgain, log }: SuccessViewProps): ReactElement {
   return (
     <section className="space-y-6">
-      <div className="space-y-2 rounded-md border border-success bg-surface-2 px-4 py-4">
-        <h2 className="text-lg font-semibold text-success">Flashed successfully.</h2>
-        <p className="text-sm text-text-dim">
+      <div className="space-y-2 rounded-md border border-success/60 bg-surface-2 px-4 py-4">
+        <h2 className="font-display text-lg font-bold tracking-wide text-success">
+          Flashed successfully
+        </h2>
+        <p className="text-sm leading-relaxed text-text-dim">
           Your dash now hosts Studio at{' '}
           <span className="font-mono text-text">canshift.local</span>. Connect to the CANShift
           WiFi access point and open that URL in your browser.
         </p>
-        <p className="text-sm text-text-muted">
+        <p className="text-sm leading-relaxed text-text-muted">
           This flow also covers normal updates and recovery from a broken update — bookmark{' '}
-          <span className="font-mono">canshift.tmbk.app</span>.
+          <span className="font-mono">canshift.tmbk.ch</span>.
         </p>
       </div>
 
-      <button
-        type="button"
-        onClick={onAgain}
-        className="rounded-md border border-border bg-surface-2 px-5 py-2.5 text-sm font-medium text-text transition hover:bg-surface focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-bg"
-      >
+      <button type="button" onClick={onAgain} className={SECONDARY_CTA_CLASSES}>
         Flash again
       </button>
 
@@ -232,28 +243,20 @@ function FailedView({
 }: FailedViewProps): ReactElement {
   return (
     <section className="space-y-6">
-      <div className="space-y-2 rounded-md border border-status-danger bg-status-danger-dim px-4 py-4">
-        <h2 className="text-lg font-semibold text-text">Flash failed</h2>
+      <div className="space-y-2 rounded-md border border-status-danger/60 bg-status-danger-dim px-4 py-4">
+        <h2 className={SECTION_HEADER_CLASSES}>Flash failed</h2>
         <p className="font-mono text-sm text-text-dim">{errorMessage ?? 'Unknown error'}</p>
-        <p className="text-sm text-text-muted">
+        <p className="text-sm leading-relaxed text-text-muted">
           If retry keeps failing: check the USB cable, try a different USB port, and reboot
           the dash before retrying.
         </p>
       </div>
 
       <div className="flex gap-3">
-        <button
-          type="button"
-          onClick={onRetry}
-          className="rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-bg"
-        >
+        <button type="button" onClick={onRetry} className={PRIMARY_CTA_CLASSES}>
           Retry
         </button>
-        <button
-          type="button"
-          onClick={onReset}
-          className="rounded-md border border-border bg-surface-2 px-5 py-2.5 text-sm font-medium text-text transition hover:bg-surface focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-bg"
-        >
+        <button type="button" onClick={onReset} className={SECONDARY_CTA_CLASSES}>
           Start over
         </button>
       </div>
@@ -265,7 +268,7 @@ function FailedView({
 
 function ErrorBanner({ message }: { message: string }): ReactElement {
   return (
-    <div className="rounded-md border border-status-danger bg-status-danger-dim px-4 py-3 text-sm text-text">
+    <div className="rounded-md border border-status-danger/60 bg-status-danger-dim px-4 py-3 text-sm text-text">
       {message}
     </div>
   )
