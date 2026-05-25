@@ -48,6 +48,7 @@ export function Flasher({ webSerialSupported }: FlasherProps): ReactElement {
           flashProgress={flasher.flashProgress}
           chipInfo={flasher.chipInfo}
           log={flasher.log}
+          onCancel={flasher.cancel}
         />
       )
     case 'success':
@@ -144,6 +145,7 @@ interface FlashingViewProps {
   flashProgress: { written: number; total: number } | null
   chipInfo: string | null
   log: string
+  onCancel: () => void
 }
 
 function FlashingView({
@@ -151,6 +153,7 @@ function FlashingView({
   flashProgress,
   chipInfo,
   log,
+  onCancel,
 }: FlashingViewProps): ReactElement {
   const downloadLabel = downloadProgress
     ? `Downloading firmware — ${formatBytes(downloadProgress.loaded)}${
@@ -161,6 +164,10 @@ function FlashingView({
   const flashLabel = flashProgress
     ? `Writing to flash — ${formatBytes(flashProgress.written)} / ${formatBytes(flashProgress.total)}`
     : 'Waiting to start flash...'
+
+  // writeFlash can't be cleanly cancelled — only offer cancel during the
+  // download phase (before any bytes have been written to the chip).
+  const canCancel = flashProgress === null
 
   return (
     <section className="space-y-6">
@@ -185,6 +192,16 @@ function FlashingView({
         max={flashProgress?.total ?? null}
         label={flashLabel}
       />
+
+      {canCancel ? (
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-sm text-text-muted underline-offset-4 hover:underline"
+        >
+          Cancel
+        </button>
+      ) : null}
 
       <LogStream log={log} />
     </section>

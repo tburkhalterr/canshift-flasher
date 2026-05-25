@@ -35,6 +35,7 @@ export interface FlasherActions {
   flash: () => Promise<void>
   reset: () => void
   reselectPort: () => Promise<void>
+  cancel: () => void
 }
 
 export function useFlasher(): FlasherStatus & FlasherActions {
@@ -42,6 +43,7 @@ export function useFlasher(): FlasherStatus & FlasherActions {
   const portRef = useRef<SerialPort | null>(null)
   const logBufferRef = useRef<string>('')
   const flashDisconnectHandlerRef = useRef<((event: Event) => void) | null>(null)
+  const downloadAbortRef = useRef<AbortController | null>(null)
 
   const detachFlashDisconnectHandler = useCallback(() => {
     const handler = flashDisconnectHandlerRef.current
@@ -99,6 +101,9 @@ export function useFlasher(): FlasherStatus & FlasherActions {
       log: '',
     }))
 
+    const abortController = new AbortController()
+    downloadAbortRef.current = abortController
+
     detachFlashDisconnectHandler()
     let disconnectFiredDuringFlash = false
     const disconnectHandler = (event: Event): void => {
@@ -120,8 +125,12 @@ export function useFlasher(): FlasherStatus & FlasherActions {
       appendLog('Downloading firmware...\n')
       const { bytes } = await downloadFirmware((dl) => {
         setStatus((prev) => ({ ...prev, downloadProgress: dl }))
-      })
+      }, abortController.signal)
       appendLog(`Downloaded ${bytes.byteLength} bytes.\n`)
+
+      // Once writeFlash is about to start, cancellation is no longer offered —
+      // drop the controller so the UI hides the Cancel button.
+      downloadAbortRef.current = null
 
       await flashFirmware({
         port,
@@ -136,17 +145,33 @@ export function useFlasher(): FlasherStatus & FlasherActions {
       })
 
       detachFlashDisconnectHandler()
+      downloadAbortRef.current = null
       setStatus((prev) => ({ ...prev, state: 'success' }))
     } catch (err) {
       detachFlashDisconnectHandler()
+      downloadAbortRef.current = null
       // Disconnect already produced the canonical failure state — don't
       // overwrite it with the cascading "port closed" error from esptool.
       if (disconnectFiredDuringFlash) return
+      // User opted out via Cancel — return to idle instead of showing failure.
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        portRef.current = null
+        logBufferRef.current = ''
+        setStatus({ ...INITIAL_STATUS })
+        return
+      }
       const message = err instanceof Error ? err.message : 'Unknown error'
       appendLog(`\nError: ${message}\n`)
       setStatus((prev) => ({ ...prev, state: 'failed', errorMessage: message }))
     }
   }, [appendLog, detachFlashDisconnectHandler])
+
+  const cancel = useCallback(() => {
+    const controller = downloadAbortRef.current
+    if (!controller) return
+    controller.abort()
+    downloadAbortRef.current = null
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -164,5 +189,6 @@ export function useFlasher(): FlasherStatus & FlasherActions {
     flash,
     reset,
     reselectPort,
+    cancel,
   }
 }
