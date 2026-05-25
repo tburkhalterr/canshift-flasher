@@ -104,6 +104,40 @@ This project does not include any deploy automation. The maintainer wires
 their own pipeline (static-hosting any `dist/`). Just upload the `dist/`
 contents to your origin and you are good.
 
+## Self-hosting
+
+The repo ships everything needed to self-host on a Docker Swarm + Dokploy +
+Traefik v3 stack:
+
+- `Dockerfile` — multi-stage build (node:20-alpine → nginx:alpine), runs as
+  the non-root `nginx` user, exposes port 8080.
+- `nginx.conf` — SPA fallback, gzip, long-cache for fingerprinted assets,
+  `no-cache` for `index.html`, security headers (CSP, HSTS, XCTO, XFO,
+  Referrer-Policy, Permissions-Policy with `serial=(self)`).
+- `docker-compose.yml` — Dokploy-friendly stack snippet, no published port,
+  joins the external Traefik network.
+- `traefik/canshift-flasher.yml` — Traefik v3 dynamic config (file provider).
+  Router on `canshift.tmbk.ch`, ACME resolver placeholder `le`,
+  `secure-headers` + `compress` middlewares, service on port 8080.
+
+```bash
+docker build -t canshift-flasher:latest .
+docker compose up -d
+```
+
+> **HTTPS is required.** Web Serial silently refuses on plain HTTP origins
+> other than `localhost`. TLS is terminated by Traefik (Let's Encrypt) in
+> front of the container — never expose port 8080 directly.
+
+The CSP `connect-src` directive in `nginx.conf` allows `'self'` plus
+`https://canshift.tmbk.ch`. If the firmware binary is served from a
+different origin, add that origin to `connect-src` or the fetch will be
+blocked.
+
+The default Traefik network is named `traefik-public`; rename in
+`docker-compose.yml` to match your swarm (Dokploy sometimes uses
+`dokploy-network`).
+
 ## License
 
 MIT — see [LICENSE](./LICENSE).
