@@ -17,3 +17,38 @@ export function formatPortInfo(port: SerialPort): string {
   }
   return 'Serial port'
 }
+
+export interface LogReportInput {
+  log: string
+  chipInfo: string | null
+  portInfo: string | null
+  userAgent: string
+  timestamp: Date
+}
+
+/** Build a downloadable plain-text support report from the flash session. */
+export function buildLogBlob(input: LogReportInput): Blob {
+  const header = [
+    'CANShift Flasher log',
+    `Timestamp: ${input.timestamp.toISOString()}`,
+    `User-Agent: ${input.userAgent}`,
+    `Chip: ${input.chipInfo ?? 'unknown'}`,
+    `Port: ${input.portInfo ?? 'unknown'}`,
+    '',
+    '---',
+    input.log,
+  ].join('\n')
+  return new Blob([header], { type: 'text/plain;charset=utf-8' })
+}
+
+/** Build a filesystem-safe filename derived from an ISO timestamp. */
+export function buildLogFilename(timestamp: Date): string {
+  const pad = (n: number): string => n.toString().padStart(2, '0')
+  const yyyy = timestamp.getUTCFullYear().toString()
+  const mm = pad(timestamp.getUTCMonth() + 1)
+  const dd = pad(timestamp.getUTCDate())
+  const hh = pad(timestamp.getUTCHours())
+  const mi = pad(timestamp.getUTCMinutes())
+  const ss = pad(timestamp.getUTCSeconds())
+  return `canshift-flasher-${yyyy}${mm}${dd}-${hh}${mi}${ss}.txt`
+}
