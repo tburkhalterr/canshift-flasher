@@ -1,0 +1,40 @@
+/* src/styles/tokens.css
+ * Mirrored from canshift-core/src/design-tokens.ts DARK_TOKENS.
+ * Keep these in sync manually — the flasher intentionally has no
+ * dependency on canshift-core (separate repo).
+ */
+:root {
+  --bg: #121212;
+  --surface: #1f1f1f;
+  --surface-2: #292929;
+  --border: #333333;
+  --primary: #ff4747;
+  --primary-foreground: #ffffff;
+  --text: #ffffff;
+  --text-dim: #bababa;
+  --text-muted: #8f8f8f;
+  --success: #00cc2a;
+  --warning: #ff8800;
+  --danger: #ff0000;
+  --status-danger: #e03030;
+  --status-danger-dim: #3a1a1a;
+  --scrim: #000000;
+
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

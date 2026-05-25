@@ -1,0 +1,30 @@
+{
+  "name": "canshift-flasher",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "USB firmware flasher for CANShift dash. Chromium-only Web Serial single-page app.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b --noEmit",
+    "lint": "tsc -b --noEmit"
+  },
+  "dependencies": {
+    "esptool-js": "0.6.0",
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.15",
+    "@types/react-dom": "19.2.3",
+    "@types/w3c-web-serial": "1.0.8",
+    "@vitejs/plugin-react": "6.0.2",
+    "autoprefixer": "10.5.0",
+    "postcss": "8.5.15",
+    "tailwindcss": "3.4.19",
+    "typescript": "6.0.3",
+    "vite": "8.0.14"
+  }
+}
