@@ -210,7 +210,7 @@ function SuccessView({ onAgain, log }: SuccessViewProps): ReactElement {
         </p>
         <p className="text-sm leading-relaxed text-text-muted">
           This flow also covers normal updates and recovery from a broken update — bookmark{' '}
-          <span className="font-mono">canshift.tmbk.app</span>.
+          <span className="font-mono">canshift.tmbk.ch</span>.
         </p>
       </div>
 

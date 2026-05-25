@@ -13,12 +13,12 @@ export const SUPPORTED_USB_FILTERS: SerialPortFilter[] = [
 /**
  * Where the flasher fetches the latest firmware binary.
  * Configurable via VITE_FIRMWARE_URL — defaults to the canonical hosting
- * origin (canshift.tmbk.app/firmware/latest.bin). The user uploads a new
+ * origin (canshift.tmbk.ch/firmware/latest.bin). The user uploads a new
  * binary here on each firmware release (separate GHA workflow they maintain).
  */
 export const FIRMWARE_URL: string =
   (import.meta.env.VITE_FIRMWARE_URL as string | undefined) ??
-  'https://canshift.tmbk.app/firmware/latest.bin'
+  'https://canshift.tmbk.ch/firmware/latest.bin'
 
 /** ESP32 baud rate for esptool stub upload. Matches canshift-studio default. */
 export const FLASH_BAUD = 921_600

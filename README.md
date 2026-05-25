@@ -2,7 +2,7 @@
 
 A single-screen web app whose only job is to **USB-flash an ESP32 with the
 latest CANShift dash firmware**. Hosted at
-[canshift.tmbk.app](https://canshift.tmbk.app).
+[canshift.tmbk.ch](https://canshift.tmbk.ch).
 
 This is a support project for the main
 [CANShift](https://github.com/tburkhalterr/CANShift) repo — kept separate to
@@ -18,7 +18,7 @@ Three use cases, **exactly one flow**:
 3. **Recovery** — after a failed OTA, broken boot loop, or KO partition.
    USB-flash gets the dash back to a clean state.
 
-User flow: plug dash → open canshift.tmbk.app → "Connect" → "Flash latest" → done.
+User flow: plug dash → open canshift.tmbk.ch → "Connect" → "Flash latest" → done.
 
 No version picker. The flasher always pulls the latest published firmware.
 
@@ -57,7 +57,7 @@ cannot prompt for serial port access.
 
 | Env var              | Default                                      | Purpose                              |
 | -------------------- | -------------------------------------------- | ------------------------------------ |
-| `VITE_FIRMWARE_URL`  | `https://canshift.tmbk.app/firmware/latest.bin` | Where to fetch the firmware binary from |
+| `VITE_FIRMWARE_URL`  | `https://canshift.tmbk.ch/firmware/latest.bin` | Where to fetch the firmware binary from |
 
 Set at build time. The firmware binary is **not** stored in this repo — the
 maintainer uploads it to the hosting origin on each firmware release.
