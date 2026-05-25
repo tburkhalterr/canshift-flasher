@@ -2,10 +2,40 @@
 import type { ReactElement } from 'react'
 
 import { useFlasher } from '../hooks/useFlasher'
-import { formatBytes, formatPortInfo } from '../lib/format'
+import {
+  buildLogBlob,
+  buildLogFilename,
+  formatBytes,
+  formatPortInfo,
+} from '../lib/format'
 
 import { LogStream } from './LogStream'
 import { ProgressBar } from './ProgressBar'
+
+interface LogContext {
+  log: string
+  chipInfo: string | null
+  port: SerialPort | null
+}
+
+function downloadLogReport({ log, chipInfo, port }: LogContext): void {
+  const timestamp = new Date()
+  const blob = buildLogBlob({
+    log,
+    chipInfo,
+    portInfo: port ? formatPortInfo(port) : null,
+    userAgent: navigator.userAgent,
+    timestamp,
+  })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = buildLogFilename(timestamp)
+  document.body.appendChild(anchor)
+  anchor.click()
+  document.body.removeChild(anchor)
+  queueMicrotask(() => URL.revokeObjectURL(url))
+}
 
 // Visual language mirrors canshift-studio: Orbitron for headers (via
 // `font-display`), system sans for body, brand red (`status-danger`) for
@@ -52,7 +82,14 @@ export function Flasher({ webSerialSupported }: FlasherProps): ReactElement {
         />
       )
     case 'success':
-      return <SuccessView onAgain={flasher.reset} log={flasher.log} />
+      return (
+        <SuccessView
+          onAgain={flasher.reset}
+          log={flasher.log}
+          chipInfo={flasher.chipInfo}
+          port={flasher.port}
+        />
+      )
     case 'failed':
       return (
         <FailedView
@@ -60,6 +97,8 @@ export function Flasher({ webSerialSupported }: FlasherProps): ReactElement {
           onRetry={flasher.flash}
           onReset={flasher.reset}
           log={flasher.log}
+          chipInfo={flasher.chipInfo}
+          port={flasher.port}
         />
       )
   }
@@ -211,9 +250,11 @@ function FlashingView({
 interface SuccessViewProps {
   onAgain: () => void
   log: string
+  chipInfo: string | null
+  port: SerialPort | null
 }
 
-function SuccessView({ onAgain, log }: SuccessViewProps): ReactElement {
+function SuccessView({ onAgain, log, chipInfo, port }: SuccessViewProps): ReactElement {
   return (
     <section className="space-y-6">
       <div className="space-y-2 rounded-md border border-success/60 bg-surface-2 px-4 py-4">
@@ -237,8 +278,15 @@ function SuccessView({ onAgain, log }: SuccessViewProps): ReactElement {
 
       <details className="text-sm text-text-muted">
         <summary className="cursor-pointer">Show log</summary>
-        <div className="mt-2">
+        <div className="mt-2 space-y-3">
           <LogStream log={log} />
+          <button
+            type="button"
+            onClick={() => downloadLogReport({ log, chipInfo, port })}
+            className="text-sm text-text-muted underline-offset-4 hover:underline"
+          >
+            Download log
+          </button>
         </div>
       </details>
     </section>
@@ -250,6 +298,8 @@ interface FailedViewProps {
   onRetry: () => void
   onReset: () => void
   log: string
+  chipInfo: string | null
+  port: SerialPort | null
 }
 
 function FailedView({
@@ -257,6 +307,8 @@ function FailedView({
   onRetry,
   onReset,
   log,
+  chipInfo,
+  port,
 }: FailedViewProps): ReactElement {
   return (
     <section className="space-y-6">
@@ -279,6 +331,14 @@ function FailedView({
       </div>
 
       <LogStream log={log} />
+
+      <button
+        type="button"
+        onClick={() => downloadLogReport({ log, chipInfo, port })}
+        className="text-sm text-text-muted underline-offset-4 hover:underline"
+      >
+        Download log
+      </button>
     </section>
   )
 }
