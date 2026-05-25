@@ -1,9 +1,12 @@
 // src/hooks/useFlasher.ts
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { SUPPORTED_USB_FILTERS } from '../constants'
 import { flashFirmware, type FlashProgress } from '../lib/esptool'
 import { downloadFirmware, type FirmwareDownloadProgress } from '../lib/firmware'
+
+const DISCONNECT_DURING_FLASH_MESSAGE =
+  'USB connection lost mid-flash — re-plug the dash and click Retry.'
 
 export type FlasherState = 'idle' | 'ready' | 'flashing' | 'success' | 'failed'
 
@@ -38,6 +41,15 @@ export function useFlasher(): FlasherStatus & FlasherActions {
   const [status, setStatus] = useState<FlasherStatus>(INITIAL_STATUS)
   const portRef = useRef<SerialPort | null>(null)
   const logBufferRef = useRef<string>('')
+  const flashDisconnectHandlerRef = useRef<((event: Event) => void) | null>(null)
+
+  const detachFlashDisconnectHandler = useCallback(() => {
+    const handler = flashDisconnectHandlerRef.current
+    if (handler) {
+      navigator.serial.removeEventListener('disconnect', handler)
+      flashDisconnectHandlerRef.current = null
+    }
+  }, [])
 
   const appendLog = useCallback((line: string) => {
     logBufferRef.current += line
@@ -58,10 +70,11 @@ export function useFlasher(): FlasherStatus & FlasherActions {
   }, [])
 
   const reset = useCallback(() => {
+    detachFlashDisconnectHandler()
     portRef.current = null
     logBufferRef.current = ''
     setStatus({ ...INITIAL_STATUS })
-  }, [])
+  }, [detachFlashDisconnectHandler])
 
   const reselectPort = useCallback(async () => {
     reset()
@@ -86,6 +99,23 @@ export function useFlasher(): FlasherStatus & FlasherActions {
       log: '',
     }))
 
+    detachFlashDisconnectHandler()
+    let disconnectFiredDuringFlash = false
+    const disconnectHandler = (event: Event): void => {
+      const target = (event as Event & { target: SerialPort | null }).target
+      if (target !== port) return
+      disconnectFiredDuringFlash = true
+      appendLog(`\n${DISCONNECT_DURING_FLASH_MESSAGE}\n`)
+      setStatus((prev) => ({
+        ...prev,
+        state: 'failed',
+        errorMessage: DISCONNECT_DURING_FLASH_MESSAGE,
+      }))
+      detachFlashDisconnectHandler()
+    }
+    flashDisconnectHandlerRef.current = disconnectHandler
+    navigator.serial.addEventListener('disconnect', disconnectHandler)
+
     try {
       appendLog('Downloading firmware...\n')
       const { bytes } = await downloadFirmware((dl) => {
@@ -105,13 +135,28 @@ export function useFlasher(): FlasherStatus & FlasherActions {
         },
       })
 
+      detachFlashDisconnectHandler()
       setStatus((prev) => ({ ...prev, state: 'success' }))
     } catch (err) {
+      detachFlashDisconnectHandler()
+      // Disconnect already produced the canonical failure state — don't
+      // overwrite it with the cascading "port closed" error from esptool.
+      if (disconnectFiredDuringFlash) return
       const message = err instanceof Error ? err.message : 'Unknown error'
       appendLog(`\nError: ${message}\n`)
       setStatus((prev) => ({ ...prev, state: 'failed', errorMessage: message }))
     }
-  }, [appendLog])
+  }, [appendLog, detachFlashDisconnectHandler])
+
+  useEffect(() => {
+    return () => {
+      const handler = flashDisconnectHandlerRef.current
+      if (handler) {
+        navigator.serial.removeEventListener('disconnect', handler)
+        flashDisconnectHandlerRef.current = null
+      }
+    }
+  }, [])
 
   return {
     ...status,
