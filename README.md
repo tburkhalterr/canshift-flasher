@@ -81,10 +81,22 @@ CANShift boards (same allowlist as `canshift-studio`):
 | CH9102 | 0x1a86 | 0x55d4 |
 | CP210x | 0x10c4 | 0xea60 |
 
-## Replacing the placeholder logo
+## Brand assets
 
-`src/components/CanshiftLogo.tsx` ships with a placeholder "CS" badge. Replace
-the component body with the real CANShift mark when it's available.
+The flasher mirrors `canshift-studio`'s visual identity so it feels like a
+member of the same product family:
+
+| Asset                                    | Source of truth                                                       |
+| ---------------------------------------- | --------------------------------------------------------------------- |
+| Logo (`public/canshift_studio_logo.png`) | `canshift-studio/assets/CANShift_studio_logo.png`                     |
+| Favicon (`public/favicon.png`)           | `canshift-studio/assets/icon.png` (the Electron app icon)             |
+| Color tokens (`src/styles/tokens.css`)   | `canshift-core/src/design-tokens.ts` (`DARK_TOKENS.colors`)           |
+| Header font                              | [Orbitron](https://fonts.google.com/specimen/Orbitron) (Google Fonts) |
+
+The flasher intentionally does **not** depend on `canshift-core` or
+`canshift-studio` — values are copied. If Studio's identity moves, re-sync
+the logo PNG, the favicon, and the CSS variables in `src/styles/tokens.css`
+manually.
 
 ## Deploy
 
