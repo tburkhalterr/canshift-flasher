@@ -7,7 +7,7 @@ import {
   type LoaderOptions,
 } from 'esptool-js'
 
-import { FIRMWARE_FLASH_OFFSET, FLASH_BAUD } from '../constants'
+import { FLASH_BAUD, MERGED_FLASH_OFFSET } from '../constants'
 
 export interface FlashProgress {
   written: number
@@ -32,10 +32,29 @@ export interface FlashRunOptions {
 export async function flashFirmware(options: FlashRunOptions): Promise<void> {
   const { port, firmware, onLog, onProgress, onChipInfo } = options
 
+  // The ROM bootloader prints `Flash ID: ffffff` when the chip can't talk to
+  // its own flash chip (usually a damaged USB cable, an unpowered hub, or a
+  // peripheral pulling on GPIO 6-11 — the SPI flash bus). Detect it in the
+  // terminal stream so we can abort before the 60s writeFlash timeout.
+  // Mirrors canshift-studio/src/hooks/useFirmwareFlash.ts.
+  const flashIdState = { bad: false }
+  const checkForBadFlashId = (text: string): void => {
+    if (flashIdState.bad) return
+    if (/Flash ID:\s*ffffff/i.test(text)) {
+      flashIdState.bad = true
+    }
+  }
+
   const terminal: IEspLoaderTerminal = {
     clean: () => {},
-    write: (data) => onLog(data),
-    writeLine: (data) => onLog(`${data}\n`),
+    write: (data) => {
+      checkForBadFlashId(data)
+      onLog(data)
+    },
+    writeLine: (data) => {
+      checkForBadFlashId(data)
+      onLog(`${data}\n`)
+    },
   }
 
   const transport = new Transport(port, /* tracing */ false)
@@ -52,8 +71,16 @@ export async function flashFirmware(options: FlashRunOptions): Promise<void> {
     const chip = await loader.main()
     if (onChipInfo) onChipInfo(chip)
 
+    // Abort before writeFlash if the bootloader reported a bad Flash ID —
+    // continuing would just hang for the full 60s flash-command timeout.
+    if (flashIdState.bad) {
+      throw new Error(
+        "Flash ID is ffffff — the chip can't reach its own flash. Try: another USB cable, a powered hub, no peripherals on GPIO 6-11.",
+      )
+    }
+
     const flashOptions: FlashOptions = {
-      fileArray: [{ data: firmware, address: FIRMWARE_FLASH_OFFSET }],
+      fileArray: [{ data: firmware, address: MERGED_FLASH_OFFSET }],
       flashMode: 'keep',
       flashFreq: 'keep',
       flashSize: 'keep',

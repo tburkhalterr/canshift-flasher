@@ -1,5 +1,5 @@
 // src/lib/firmware.ts
-import { FIRMWARE_URL } from '../constants'
+import { FIRMWARE_BINARY_MAX_BYTES, FIRMWARE_URL } from '../constants'
 
 export interface FirmwareDownloadProgress {
   loaded: number
@@ -38,6 +38,16 @@ export async function downloadFirmware(
 
   const contentLengthHeader = response.headers.get('content-length')
   const total = contentLengthHeader ? Number.parseInt(contentLengthHeader, 10) : null
+
+  // Reject before allocating any buffers if the server announces a body
+  // larger than the cap. A hostile mirror could lie in Content-Length but
+  // the in-loop guard below catches that case too.
+  if (total !== null && Number.isFinite(total) && total > FIRMWARE_BINARY_MAX_BYTES) {
+    throw new Error(
+      `Firmware download rejected: announced size ${String(total)} bytes exceeds cap of ${String(FIRMWARE_BINARY_MAX_BYTES)} bytes`,
+    )
+  }
+
   const reader = response.body.getReader()
   const chunks: Uint8Array[] = []
   let loaded = 0
@@ -46,8 +56,16 @@ export async function downloadFirmware(
     const { done, value } = await reader.read()
     if (done) break
     if (value) {
-      chunks.push(value)
       loaded += value.byteLength
+      if (loaded > FIRMWARE_BINARY_MAX_BYTES) {
+        await reader.cancel().catch(() => {
+          /* best-effort: server may have already closed the stream */
+        })
+        throw new Error(
+          `Firmware download rejected: streamed ${String(loaded)} bytes exceeds cap of ${String(FIRMWARE_BINARY_MAX_BYTES)} bytes`,
+        )
+      }
+      chunks.push(value)
       onProgress({ loaded, total })
     }
   }

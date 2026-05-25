@@ -62,6 +62,25 @@ cannot prompt for serial port access.
 Set at build time. The firmware binary is **not** stored in this repo — the
 maintainer uploads it to the hosting origin on each firmware release.
 
+### Firmware artifact format
+
+`latest.bin` **MUST** be the **merged** image (bootloader + partition table +
+app), not the app-only firmware. The flasher writes it at flash offset `0x0`,
+which matches how `canshift-studio` flashes the merged image.
+
+Build the merged image with:
+
+```bash
+esptool merge_bin -o latest.bin \
+  0x1000  bootloader.bin \
+  0x8000  partitions.bin \
+  0x10000 firmware.bin
+```
+
+Uploading the app-only `firmware.bin` (intended for `0x10000`) at `latest.bin`
+would brick boot — the ROM bootloader would fail with `flash read err, 1000`
+because the bootloader bytes would land at `0x10000` instead of `0x1000`.
+
 ## Threat model
 
 The USB flash path writes raw bytes to flash and bypasses the HMAC verification
