@@ -5,6 +5,22 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # Tailwind v4 is a rewrite (PostCSS plugin moved to @tailwindcss/postcss,
+      # config moved from JS to CSS). Major bumps need a dedicated migration.
+      - dependency-name: tailwindcss
+        update-types: ["version-update:semver-major"]
+      # ESLint v10 needs ecosystem-wide plugin compat; eslint-plugin-import
+      # still pins v9 in peerDeps. Bump manually once plugins catch up.
+      - dependency-name: eslint
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@eslint/js"
+        update-types: ["version-update:semver-major"]
+      # React majors are coordinated landmark upgrades, not auto-merge fodder.
+      - dependency-name: react
+        update-types: ["version-update:semver-major"]
+      - dependency-name: react-dom
+        update-types: ["version-update:semver-major"]
     groups:
       react:
         patterns:
