@@ -12,6 +12,7 @@
     "lint": "tsc -b --noEmit"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "esptool-js": "0.6.0",
     "react": "19.2.6",
     "react-dom": "19.2.6"
