@@ -8,6 +8,21 @@ import { downloadFirmware, type FirmwareDownloadProgress } from '../lib/firmware
 const DISCONNECT_DURING_FLASH_MESSAGE =
   'USB connection lost mid-flash — re-plug the dash and click Retry.'
 
+/** True when the port's USB IDs match one of the allowed bridges. */
+function isSupportedPort(port: SerialPort): boolean {
+  const info = port.getInfo()
+  return SUPPORTED_USB_FILTERS.some(
+    (filter) =>
+      filter.usbVendorId === info.usbVendorId && filter.usbProductId === info.usbProductId,
+  )
+}
+
+async function findSingleSupportedPort(): Promise<SerialPort | null> {
+  const ports = await navigator.serial.getPorts()
+  const supported = ports.filter(isSupportedPort)
+  return supported.length === 1 ? (supported[0] ?? null) : null
+}
+
 export type FlasherState = 'idle' | 'ready' | 'flashing' | 'success' | 'failed'
 
 export interface FlasherStatus {
@@ -180,6 +195,50 @@ export function useFlasher(): FlasherStatus & FlasherActions {
         navigator.serial.removeEventListener('disconnect', handler)
         flashDisconnectHandlerRef.current = null
       }
+    }
+  }, [])
+
+  // Auto-select a previously-authorised port on mount, and keep the
+  // idle ↔ ready transition in sync when the user (un)plugs the dash.
+  // StrictMode safe: the cleanup removes the same handler instances added.
+  useEffect(() => {
+    let cancelled = false
+
+    const promoteIfSingleMatch = async (): Promise<void> => {
+      const port = await findSingleSupportedPort()
+      if (cancelled || !port) return
+      // Don't disrupt anything past idle — auto-select only ever transitions
+      // idle → ready. Other states own the port lifecycle themselves.
+      setStatus((prev) => {
+        if (prev.state !== 'idle') return prev
+        portRef.current = port
+        return { ...prev, port, state: 'ready', errorMessage: null }
+      })
+    }
+
+    const handleConnect = (): void => {
+      void promoteIfSingleMatch()
+    }
+
+    const handleDisconnect = (event: Event): void => {
+      const target = (event as Event & { target: SerialPort | null }).target
+      if (!target) return
+      // The flash-time disconnect handler owns the flashing-state case.
+      setStatus((prev) => {
+        if (prev.state !== 'ready' || prev.port !== target) return prev
+        portRef.current = null
+        return { ...prev, port: null, state: 'idle' }
+      })
+    }
+
+    navigator.serial.addEventListener('connect', handleConnect)
+    navigator.serial.addEventListener('disconnect', handleDisconnect)
+    void promoteIfSingleMatch()
+
+    return () => {
+      cancelled = true
+      navigator.serial.removeEventListener('connect', handleConnect)
+      navigator.serial.removeEventListener('disconnect', handleDisconnect)
     }
   }, [])
 
