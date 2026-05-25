@@ -1,0 +1,20 @@
+# docker-compose.yml — Dokploy deploy snippet for the CANShift flasher.
+# Traefik (running elsewhere on the swarm) routes traffic in; no port is
+# published. Dynamic routing is declared in traefik/canshift-flasher.yml,
+# not inline labels.
+
+services:
+  canshift-flasher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: canshift-flasher:latest
+    restart: unless-stopped
+    networks:
+      # External Traefik network. Default Dokploy name is `traefik-public`;
+      # rename here to match your swarm if it differs (e.g. `dokploy-network`).
+      - traefik-public
+
+networks:
+  traefik-public:
+    external: true

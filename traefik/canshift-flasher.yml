@@ -1,0 +1,39 @@
+# traefik/canshift-flasher.yml — Traefik v3 dynamic configuration.
+# Loaded by Traefik's file provider; do not migrate this into inline service
+# labels. The `le` certificate resolver name is a placeholder — rename to
+# whatever ACME resolver is registered in your Traefik static config.
+
+http:
+  routers:
+    canshift-flasher:
+      rule: "Host(`canshift.tmbk.ch`)"
+      entryPoints:
+        - websecure
+      service: canshift-flasher
+      middlewares:
+        - canshift-flasher-secure-headers
+        - canshift-flasher-compress
+      tls:
+        certResolver: le
+
+  middlewares:
+    canshift-flasher-secure-headers:
+      headers:
+        frameDeny: true
+        contentTypeNosniff: true
+        referrerPolicy: "no-referrer"
+        stsSeconds: 63072000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        permissionsPolicy: "serial=(self)"
+
+    canshift-flasher-compress:
+      compress: {}
+
+  services:
+    canshift-flasher:
+      loadBalancer:
+        servers:
+          # Docker Swarm service DNS — port matches the container's EXPOSE.
+          - url: "http://canshift-flasher:8080"
+        passHostHeader: true
