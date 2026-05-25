@@ -91,7 +91,7 @@ member of the same product family:
 | Logo (`public/canshift_studio_logo.png`) | `canshift-studio/assets/CANShift_studio_logo.png`                     |
 | Favicon (`public/favicon.png`)           | `canshift-studio/assets/icon.png` (the Electron app icon)             |
 | Color tokens (`src/styles/tokens.css`)   | `canshift-core/src/design-tokens.ts` (`DARK_TOKENS.colors`)           |
-| Header font                              | [Orbitron](https://fonts.google.com/specimen/Orbitron) (Google Fonts) |
+| Header font (`public/fonts/orbitron-*.woff2`) | [Orbitron](https://fonts.google.com/specimen/Orbitron) (self-hosted from [Fontsource](https://fontsource.org/fonts/orbitron)) |
 
 The flasher intentionally does **not** depend on `canshift-core` or
 `canshift-studio` — values are copied. If Studio's identity moves, re-sync

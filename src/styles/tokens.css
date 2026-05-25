@@ -9,6 +9,23 @@
  * Tailwind colors to `var(--*)` directly (no HSL channel split), so any
  * CSS color format works here.
  */
+
+@font-face {
+  font-family: 'Orbitron';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/orbitron-400.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Orbitron';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/orbitron-700.woff2') format('woff2');
+}
+
 :root {
   --bg: #121212;
   --surface: #1f1f1f;
