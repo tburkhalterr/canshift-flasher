@@ -27,6 +27,16 @@ export const FLASH_BAUD = 921_600
 export const INITIAL_BAUD = 115_200
 
 /**
+ * Hard ceiling for firmware downloads.
+ *
+ * Current merged firmware images are ~1.5 MiB; 16 MiB gives ~10x headroom
+ * while preventing a hostile mirror from streaming a multi-GB body and
+ * OOMing the tab. Mirrors the cap used in
+ * canshift-studio/main/services/firmware.service.ts.
+ */
+export const FIRMWARE_BINARY_MAX_BYTES = 16 * 1024 * 1024
+
+/**
  * Flash offset for the merged firmware image.
  *
  * `latest.bin` MUST be the merged binary produced by
