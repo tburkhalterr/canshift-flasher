@@ -60,6 +60,7 @@ The `dist/` folder is a static SPA — host it on any HTTPS-capable origin.
 | Env var              | Default                                      | Purpose                              |
 | -------------------- | -------------------------------------------- | ------------------------------------ |
 | `VITE_FIRMWARE_URL`  | `https://canshift.tmbk.ch/firmware/latest.bin` | Where to fetch the firmware binary from |
+| `VITE_TELEMETRY_URL` | _(unset → telemetry disabled)_               | Endpoint that receives anonymous flash-outcome events |
 
 Set at build time. The firmware binary is **not** stored in this repo — the
 maintainer uploads it to the hosting origin on each firmware release.
@@ -82,6 +83,51 @@ esptool merge_bin -o latest.bin \
 Uploading the app-only `firmware.bin` (intended for `0x10000`) at `latest.bin`
 would brick boot — the ROM bootloader would fail with `flash read err, 1000`
 because the bootloader bytes would land at `0x10000` instead of `0x1000`.
+
+## Telemetry
+
+**Off by default.** Telemetry only activates if you build with
+`VITE_TELEMETRY_URL=<your endpoint>` — there is no default destination, so
+the stock build emits nothing.
+
+When enabled, the flasher sends **one tiny anonymous JSON blob per flash
+attempt**, fired with `keepalive: true` so it doesn't block the UI and
+silently swallows any error:
+
+```jsonc
+{
+  "outcome": "success" | "failed" | "cancelled",
+  "chipFamily": "ESP32-S3" | null,
+  "firmwareVersion": null,        // reserved — not currently populated
+  "durationMs": 28412,
+  "errorClass":
+    "flash-id-ffffff" | "sync-failed" | "sha256-mismatch" |
+    "disconnect" | "http" | "cancelled" | "unknown" | null,
+  "browser": "Chrome" | "Edge" | "Brave" | "Opera" | "Arc" | "Other",
+  "os":      "Windows" | "macOS" | "Linux" | "Other"
+}
+```
+
+What is **never** sent: port VID/PID, full user agent (only coarse
+buckets), raw log contents, error messages, IP-derived fields, or
+anything the user typed. Browser/OS are bucketed without version.
+
+### Per-user opt-out
+
+Even when the build is configured with a telemetry endpoint, individual
+users can opt out from their browser's DevTools console:
+
+```js
+localStorage.setItem('canshift-flasher.telemetry.optout', '1')
+```
+
+The flag short-circuits the send entirely — nothing leaves the device.
+
+### CSP
+
+If `VITE_TELEMETRY_URL` points to an origin other than `'self'` /
+`canshift.tmbk.ch`, append that origin to the `connect-src` directive in
+`nginx.conf`, otherwise the browser will block the request.
 
 ## Threat model
 
