@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { FIRMWARE_URL, SUPPORTED_USB_FILTERS } from '../constants'
 import { flashFirmware, type FlashProgress } from '../lib/esptool'
 import { downloadFirmware, type FirmwareDownloadProgress } from '../lib/firmware'
+import { verifyFirmwareSha256 } from '../lib/integrity'
 import { fetchLatestRelease, type Release } from '../lib/releases'
 import { classifyError, sendTelemetry } from '../lib/telemetry'
 
@@ -185,6 +186,15 @@ export function useFlasher(): FlasherStatus & FlasherActions {
         abortController.signal,
       )
       appendLog(`Downloaded ${bytes.byteLength} bytes.\n`)
+
+      // Mandatory SHA-256 verification (#4). A missing or malformed `.sha256`
+      // sibling is a hard fail — there is no opt-out flag. Same gate for the
+      // FIRMWARE_URL fallback path: deployments using a self-hosted mirror
+      // MUST publish a `${FIRMWARE_URL}.sha256` next to the binary.
+      const manifestUrl = `${downloadUrl}.sha256`
+      appendLog('Verifying firmware SHA-256...\n')
+      const digest = await verifyFirmwareSha256(bytes, manifestUrl)
+      appendLog(`Firmware SHA-256 OK (${digest}).\n`)
 
       // Once writeFlash is about to start, cancellation is no longer offered —
       // drop the controller so the UI hides the Cancel button.

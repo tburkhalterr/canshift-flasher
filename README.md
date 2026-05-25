@@ -131,14 +131,19 @@ If `VITE_TELEMETRY_URL` points to an origin other than `'self'` /
 
 ## Threat model
 
-The USB flash path writes raw bytes to flash and bypasses the HMAC verification
-that the running firmware applies to OTA payloads. For v1 this residual risk is
-accepted because the user is on a trusted local USB connection. HMAC pre-flash
-verification and a SHA-256 integrity check on the downloaded firmware are
-tracked as v2 items in
-[tburkhalterr/CANShift#1081](https://github.com/tburkhalterr/CANShift/issues/1081)
-and
-[tburkhalterr/canshift-flasher#4](https://github.com/tburkhalterr/canshift-flasher/issues/4).
+The flasher fetches the firmware from a public CDN and then writes it raw to
+flash. Every downloaded artifact is **SHA-256 verified before flashing** against
+the sibling `.sha256` file published next to the binary in the GitHub release
+(coreutils format). A mismatch, a missing `.sha256` sibling, or a malformed
+manifest hard-fails the flash — there is no opt-out flag.
+
+The same gate applies to the `VITE_FIRMWARE_URL` fallback path: any deployment
+serving a self-hosted mirror **MUST** publish a sibling `.sha256` file next to
+the binary, or the flasher will refuse to flash.
+
+A separate HMAC pre-flash gate (closer to the in-firmware OTA verification) is
+tracked as a future hardening item in
+[tburkhalterr/CANShift#1081](https://github.com/tburkhalterr/CANShift/issues/1081).
 
 Security disclosures: see [`public/.well-known/security.txt`](./public/.well-known/security.txt).
 <!-- TODO: confirm contact — currently security@tmbk.ch -->
