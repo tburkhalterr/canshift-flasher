@@ -19,6 +19,18 @@ jobs:
 
       - run: npm ci
 
+      - name: Forbid build artifacts
+        run: |
+          if git ls-files | grep -E '(\.tsbuildinfo|^dist/)'; then
+            echo "::error::Build artifacts must not be tracked"
+            exit 1
+          fi
+
+      - name: Audit dependencies
+        run: npm audit --omit=dev --audit-level=high
+
       - run: npm run typecheck
+
+      - run: npm run lint
 
       - run: npm run build
