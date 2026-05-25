@@ -3,7 +3,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { FIRMWARE_URL, SUPPORTED_USB_FILTERS } from '../constants'
 import { flashFirmware, type FlashProgress } from '../lib/esptool'
-import { downloadFirmware, type FirmwareDownloadProgress } from '../lib/firmware'
+import {
+  downloadFirmware,
+  downloadFirmwareBundle,
+  type FirmwareDownloadProgress,
+} from '../lib/firmware'
 import { verifyFirmwareSha256 } from '../lib/integrity'
 import { fetchLatestRelease, type Release } from '../lib/releases'
 import { classifyError, sendTelemetry } from '../lib/telemetry'
@@ -34,6 +38,8 @@ export interface FlasherStatus {
   errorMessage: string | null
   chipInfo: string | null
   downloadProgress: FirmwareDownloadProgress | null
+  /** Present only when the release includes a SPIFFS asset. */
+  spiffsDownloadProgress: FirmwareDownloadProgress | null
   flashProgress: FlashProgress | null
   log: string
   release: Release | null
@@ -45,6 +51,7 @@ const INITIAL_STATUS: FlasherStatus = {
   errorMessage: null,
   chipInfo: null,
   downloadProgress: null,
+  spiffsDownloadProgress: null,
   flashProgress: null,
   log: '',
   release: null,
@@ -124,6 +131,7 @@ export function useFlasher(): FlasherStatus & FlasherActions {
       errorMessage: null,
       chipInfo: null,
       downloadProgress: { loaded: 0, total: null },
+      spiffsDownloadProgress: null,
       flashProgress: null,
       log: '',
     }))
@@ -161,40 +169,73 @@ export function useFlasher(): FlasherStatus & FlasherActions {
     try {
       const release = releaseRef.current
       const firmwareUrl = release?.firmwareAsset?.url ?? null
-      if (release && firmwareUrl) {
-        appendLog(`Downloading firmware v${release.version}...\n`)
-      } else {
-        if (release && !firmwareUrl) {
-          // Release metadata loaded but the merged asset was missing —
-          // fall back to FIRMWARE_URL so the user still gets a working flow.
-          console.warn(
-            'Latest release has no firmware asset matching the merged image pattern — falling back to FIRMWARE_URL.',
-          )
-          appendLog('Latest release missing firmware asset — falling back to static URL.\n')
-        } else if (!release) {
-          console.warn('Release metadata unavailable — falling back to FIRMWARE_URL.')
-          appendLog('Release metadata unavailable — falling back to static URL.\n')
-        }
-        appendLog('Downloading firmware...\n')
+      const useReleaseBundle = release !== null && firmwareUrl !== null
+      if (!release) {
+        console.warn('Release metadata unavailable — falling back to FIRMWARE_URL.')
+        appendLog('Release metadata unavailable — falling back to static URL.\n')
+      } else if (!firmwareUrl) {
+        console.warn(
+          'Latest release has no firmware asset matching the merged image pattern — falling back to FIRMWARE_URL.',
+        )
+        appendLog('Latest release missing firmware asset — falling back to static URL.\n')
       }
-      const downloadUrl = firmwareUrl ?? FIRMWARE_URL
-      const { bytes } = await downloadFirmware(
-        downloadUrl,
-        (dl) => {
-          setStatus((prev) => ({ ...prev, downloadProgress: dl }))
-        },
-        abortController.signal,
-      )
-      appendLog(`Downloaded ${bytes.byteLength} bytes.\n`)
+
+      let firmwareBytes: Uint8Array
+      let firmwareManifestUrl: string
+      let spiffsBytes: Uint8Array | null = null
+      let spiffsManifestUrl: string | null = null
+
+      if (useReleaseBundle) {
+        if (release.spiffsAsset) {
+          appendLog(`Downloading firmware v${release.version} + SPIFFS...\n`)
+        } else {
+          appendLog(`Downloading firmware v${release.version}...\n`)
+        }
+        const bundle = await downloadFirmwareBundle(
+          release,
+          (p) => {
+            setStatus((prev) => ({
+              ...prev,
+              downloadProgress: p.firmware ?? prev.downloadProgress,
+              spiffsDownloadProgress: p.spiffs,
+            }))
+          },
+          abortController.signal,
+        )
+        firmwareBytes = bundle.firmware.bytes
+        firmwareManifestUrl = bundle.firmwareManifestUrl
+        spiffsBytes = bundle.spiffs?.bytes ?? null
+        spiffsManifestUrl = bundle.spiffsManifestUrl
+        appendLog(`Downloaded firmware ${firmwareBytes.byteLength} bytes.\n`)
+        if (spiffsBytes) {
+          appendLog(`Downloaded SPIFFS ${spiffsBytes.byteLength} bytes.\n`)
+        }
+      } else {
+        appendLog('Downloading firmware...\n')
+        const downloadUrl = FIRMWARE_URL
+        const { bytes } = await downloadFirmware(
+          downloadUrl,
+          (dl) => {
+            setStatus((prev) => ({ ...prev, downloadProgress: dl }))
+          },
+          abortController.signal,
+        )
+        firmwareBytes = bytes
+        firmwareManifestUrl = `${downloadUrl}.sha256`
+        appendLog(`Downloaded ${firmwareBytes.byteLength} bytes.\n`)
+      }
 
       // Mandatory SHA-256 verification (#4). A missing or malformed `.sha256`
       // sibling is a hard fail — there is no opt-out flag. Same gate for the
-      // FIRMWARE_URL fallback path: deployments using a self-hosted mirror
-      // MUST publish a `${FIRMWARE_URL}.sha256` next to the binary.
-      const manifestUrl = `${downloadUrl}.sha256`
+      // FIRMWARE_URL fallback path and for the SPIFFS partition.
       appendLog('Verifying firmware SHA-256...\n')
-      const digest = await verifyFirmwareSha256(bytes, manifestUrl)
-      appendLog(`Firmware SHA-256 OK (${digest}).\n`)
+      const fwDigest = await verifyFirmwareSha256(firmwareBytes, firmwareManifestUrl)
+      appendLog(`Firmware SHA-256 OK (${fwDigest}).\n`)
+      if (spiffsBytes && spiffsManifestUrl) {
+        appendLog('Verifying SPIFFS SHA-256...\n')
+        const spiffsDigest = await verifyFirmwareSha256(spiffsBytes, spiffsManifestUrl)
+        appendLog(`SPIFFS SHA-256 OK (${spiffsDigest}).\n`)
+      }
 
       // Once writeFlash is about to start, cancellation is no longer offered —
       // drop the controller so the UI hides the Cancel button.
@@ -202,7 +243,8 @@ export function useFlasher(): FlasherStatus & FlasherActions {
 
       await flashFirmware({
         port,
-        firmware: bytes,
+        firmware: firmwareBytes,
+        ...(spiffsBytes ? { spiffs: spiffsBytes } : {}),
         onLog: appendLog,
         onProgress: (progress) => {
           setStatus((prev) => ({ ...prev, flashProgress: progress }))

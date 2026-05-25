@@ -1,6 +1,8 @@
 // src/lib/firmware.ts
 import { FIRMWARE_BINARY_MAX_BYTES } from '../constants'
 
+import type { Release } from './releases'
+
 export interface FirmwareDownloadProgress {
   loaded: number
   total: number | null
@@ -83,4 +85,70 @@ function concatChunks(chunks: readonly Uint8Array[], total: number): Uint8Array 
     offset += chunk.byteLength
   }
   return out
+}
+
+export interface FirmwareBundleProgress {
+  firmware: FirmwareDownloadProgress | null
+  spiffs: FirmwareDownloadProgress | null
+}
+
+export interface FirmwareBundle {
+  firmware: FirmwareBinary
+  /** Sibling SHA-256 manifest URL for the firmware binary. */
+  firmwareManifestUrl: string
+  /** SPIFFS image — present only when the release ships one. */
+  spiffs: FirmwareBinary | null
+  spiffsManifestUrl: string | null
+}
+
+/**
+ * Download both the merged firmware image and the (optional) SPIFFS partition
+ * image sequentially. Reports progress for each asset independently so the UI
+ * can render two bars during the download phase. SPIFFS is optional — when
+ * `release.spiffsAsset` is null the function skips it without complaint.
+ *
+ * Both buffers are caller-verified via `verifyFirmwareSha256` against the
+ * sibling `.sha256` URLs surfaced on the asset.
+ */
+export async function downloadFirmwareBundle(
+  release: Release,
+  onProgress: (p: FirmwareBundleProgress) => void,
+  signal?: AbortSignal,
+): Promise<FirmwareBundle> {
+  if (!release.firmwareAsset) {
+    throw new Error('Release is missing a firmware asset')
+  }
+  const fwAsset = release.firmwareAsset
+  const spiffsAsset = release.spiffsAsset
+
+  let firmwareProgress: FirmwareDownloadProgress | null = null
+  let spiffsProgress: FirmwareDownloadProgress | null = null
+
+  const firmware = await downloadFirmware(
+    fwAsset.url,
+    (p) => {
+      firmwareProgress = p
+      onProgress({ firmware: firmwareProgress, spiffs: spiffsProgress })
+    },
+    signal,
+  )
+
+  let spiffs: FirmwareBinary | null = null
+  if (spiffsAsset) {
+    spiffs = await downloadFirmware(
+      spiffsAsset.url,
+      (p) => {
+        spiffsProgress = p
+        onProgress({ firmware: firmwareProgress, spiffs: spiffsProgress })
+      },
+      signal,
+    )
+  }
+
+  return {
+    firmware,
+    firmwareManifestUrl: fwAsset.sha256Url,
+    spiffs,
+    spiffsManifestUrl: spiffsAsset?.sha256Url ?? null,
+  }
 }

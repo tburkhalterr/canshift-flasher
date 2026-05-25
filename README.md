@@ -59,30 +59,47 @@ The `dist/` folder is a static SPA — host it on any HTTPS-capable origin.
 
 | Env var              | Default                                      | Purpose                              |
 | -------------------- | -------------------------------------------- | ------------------------------------ |
-| `VITE_FIRMWARE_URL`  | `https://canshift.tmbk.ch/firmware/latest.bin` | Where to fetch the firmware binary from |
+| `VITE_FIRMWARE_URL`  | `https://canshift.tmbk.ch/firmware/latest.bin` | **Deprecated.** Static fallback used only when the GitHub Releases API is unreachable. |
 | `VITE_TELEMETRY_URL` | _(unset → telemetry disabled)_               | Endpoint that receives anonymous flash-outcome events |
 
-Set at build time. The firmware binary is **not** stored in this repo — the
-maintainer uploads it to the hosting origin on each firmware release.
+The default flow now pulls release metadata + asset URLs directly from the
+canonical GitHub repository — set the URL by appending `?prerelease=1` to the
+flasher origin to opt into pre-release builds. `VITE_FIRMWARE_URL` is kept
+only for back-compat with deployments that pinned a self-hosted mirror; the
+same SHA-256 verification applies to it.
 
 ### Firmware artifact format
 
-`latest.bin` **MUST** be the **merged** image (bootloader + partition table +
-app), not the app-only firmware. The flasher writes it at flash offset `0x0`,
-which matches how `canshift-studio` flashes the merged image.
+The flasher pulls release metadata from the canonical GitHub repo
+(`tburkhalterr/CANShift`) and writes:
+
+1. The **merged firmware image** at flash offset `0x0`. Asset name pattern:
+   `canshift-firmware-*-crowpanel_28-merged.bin`. This is the bootloader +
+   partition table + app produced by `esptool merge_bin`.
+2. The **SPIFFS partition image** at flash offset `0x310000` **when the
+   release includes one**. Asset name pattern:
+   `canshift-spiffs-*-crowpanel_28.bin`. Released images that omit this asset
+   are still supported — the flasher just skips the SPIFFS write.
+
+Each asset MUST be accompanied by a sibling `<asset>.sha256` file in coreutils
+format (`<64-hex>  <filename>`) — the flasher hard-fails when the manifest is
+missing or doesn't match.
+
+If you self-host a fallback binary via `VITE_FIRMWARE_URL`, it MUST be the
+merged image and MUST publish `${VITE_FIRMWARE_URL}.sha256` next to it.
+Uploading the app-only `firmware.bin` (intended for `0x10000`) at the same
+URL would brick boot — the ROM bootloader would fail with `flash read err,
+1000` because the bootloader bytes would land at `0x10000` instead of
+`0x1000`.
 
 Build the merged image with:
 
 ```bash
-esptool merge_bin -o latest.bin \
+esptool merge_bin -o canshift-firmware-vX.Y.Z-crowpanel_28-merged.bin \
   0x1000  bootloader.bin \
   0x8000  partitions.bin \
   0x10000 firmware.bin
 ```
-
-Uploading the app-only `firmware.bin` (intended for `0x10000`) at `latest.bin`
-would brick boot — the ROM bootloader would fail with `flash read err, 1000`
-because the bootloader bytes would land at `0x10000` instead of `0x1000`.
 
 ## Telemetry
 
@@ -98,7 +115,7 @@ silently swallows any error:
 {
   "outcome": "success" | "failed" | "cancelled",
   "chipFamily": "ESP32-S3" | null,
-  "firmwareVersion": null,        // reserved — not currently populated
+  "firmwareVersion": "vX.Y.Z" | null,
   "durationMs": 28412,
   "errorClass":
     "flash-id-ffffff" | "sync-failed" | "sha256-mismatch" |

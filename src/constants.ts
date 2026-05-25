@@ -58,6 +58,15 @@ export const FIRMWARE_BINARY_MAX_BYTES = 16 * 1024 * 1024
 export const MERGED_FLASH_OFFSET = 0x0
 
 /**
+ * Flash offset for the SPIFFS partition.
+ *
+ * Pulled from canshift-firmware's `ota_4mb.csv` partition table — the SPIFFS
+ * partition starts at 0x310000 on the supported 4 MB layout. Mirrors the
+ * offset used by canshift-studio's useFirmwareFlash hook.
+ */
+export const SPIFFS_FLASH_OFFSET = 0x310000
+
+/**
  * Telemetry collection endpoint. Opt-in only — there is no default.
  *
  * When unset (the stock build), all telemetry calls are no-ops. When set

@@ -84,6 +84,7 @@ export function Flasher({ webSerialSupported }: FlasherProps): ReactElement {
       return (
         <FlashingView
           downloadProgress={flasher.downloadProgress}
+          spiffsDownloadProgress={flasher.spiffsDownloadProgress}
           flashProgress={flasher.flashProgress}
           chipInfo={flasher.chipInfo}
           log={flasher.log}
@@ -232,6 +233,7 @@ function ReadyView({ port, onFlash, onReselect }: ReadyViewProps): ReactElement 
 
 interface FlashingViewProps {
   downloadProgress: { loaded: number; total: number | null } | null
+  spiffsDownloadProgress: { loaded: number; total: number | null } | null
   flashProgress: { written: number; total: number } | null
   chipInfo: string | null
   log: string
@@ -240,6 +242,7 @@ interface FlashingViewProps {
 
 function FlashingView({
   downloadProgress,
+  spiffsDownloadProgress,
   flashProgress,
   chipInfo,
   log,
@@ -250,6 +253,12 @@ function FlashingView({
         downloadProgress.total ? ` / ${formatBytes(downloadProgress.total)}` : ''
       }`
     : 'Preparing...'
+
+  const spiffsLabel = spiffsDownloadProgress
+    ? `Downloading SPIFFS — ${formatBytes(spiffsDownloadProgress.loaded)}${
+        spiffsDownloadProgress.total ? ` / ${formatBytes(spiffsDownloadProgress.total)}` : ''
+      }`
+    : null
 
   const flashLabel = flashProgress
     ? `Writing to flash — ${formatBytes(flashProgress.written)} / ${formatBytes(flashProgress.total)}`
@@ -276,6 +285,14 @@ function FlashingView({
         max={downloadProgress?.total ?? null}
         label={downloadLabel}
       />
+
+      {spiffsLabel ? (
+        <ProgressBar
+          value={spiffsDownloadProgress?.loaded ?? null}
+          max={spiffsDownloadProgress?.total ?? null}
+          label={spiffsLabel}
+        />
+      ) : null}
 
       <ProgressBar
         value={flashProgress?.written ?? null}

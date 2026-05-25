@@ -7,7 +7,7 @@ import {
   type LoaderOptions,
 } from 'esptool-js'
 
-import { FLASH_BAUD, MERGED_FLASH_OFFSET } from '../constants'
+import { FLASH_BAUD, MERGED_FLASH_OFFSET, SPIFFS_FLASH_OFFSET } from '../constants'
 
 import {
   RESET_PASS_GAP_MS,
@@ -24,6 +24,8 @@ export interface FlashProgress {
 export interface FlashRunOptions {
   port: SerialPort
   firmware: Uint8Array
+  /** Optional SPIFFS image — flashed at SPIFFS_FLASH_OFFSET when present. */
+  spiffs?: Uint8Array
   onLog: (line: string) => void
   onProgress: (progress: FlashProgress) => void
   onChipInfo?: (chip: string) => void
@@ -96,7 +98,7 @@ async function attemptBootloaderEntry(
  * are needed to cover stubborn CH340 boards on macOS.
  */
 export async function flashFirmware(options: FlashRunOptions): Promise<void> {
-  const { port, firmware, onLog, onProgress, onChipInfo } = options
+  const { port, firmware, spiffs, onLog, onProgress, onChipInfo } = options
 
   // The ROM bootloader prints `Flash ID: ffffff` when the chip can't talk to
   // its own flash chip (usually a damaged USB cable, an unpowered hub, or a
@@ -160,8 +162,15 @@ export async function flashFirmware(options: FlashRunOptions): Promise<void> {
       )
     }
 
+    const fileArray: FlashOptions['fileArray'] = [
+      { data: firmware, address: MERGED_FLASH_OFFSET },
+    ]
+    if (spiffs) {
+      fileArray.push({ data: spiffs, address: SPIFFS_FLASH_OFFSET })
+    }
+
     const flashOptions: FlashOptions = {
-      fileArray: [{ data: firmware, address: MERGED_FLASH_OFFSET }],
+      fileArray,
       flashMode: 'keep',
       flashFreq: 'keep',
       flashSize: 'keep',
