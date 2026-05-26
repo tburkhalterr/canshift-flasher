@@ -1,7 +1,7 @@
 // src/lib/releases.test.ts
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { fetchLatestRelease, fetchReleaseByTag } from './releases'
+import { fetchLatestRelease, fetchRecentReleases, fetchReleaseByTag } from './releases'
 
 const FIRMWARE_ASSET_NAME = 'canshift-firmware-v0.10.0-crowpanel_28-merged.bin'
 const SPIFFS_ASSET_NAME = 'canshift-spiffs-v0.10.0-crowpanel_28.bin'
@@ -198,5 +198,115 @@ describe('fetchReleaseByTag', () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ wrong: 'shape' }))
 
     await expect(fetchReleaseByTag('v0.9.1')).rejects.toThrow(/v0\.9\.1/)
+  })
+})
+
+describe('fetchRecentReleases', () => {
+  const fetchMock = vi.fn<typeof fetch>()
+
+  const makeRecentRaw = (
+    tag: string,
+    publishedAt: string,
+    prerelease = false,
+  ): Record<string, unknown> => ({
+    tag_name: tag,
+    published_at: publishedAt,
+    prerelease,
+    body: null,
+    html_url: `https://github.com/tburkhalterr/CANShift/releases/tag/${tag}`,
+    assets: [],
+  })
+
+  beforeEach(() => {
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('returns mapped entries with tag, publishedAt and prerelease', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([
+        makeRecentRaw('v0.10.0', '2026-04-01T12:00:00Z'),
+        makeRecentRaw('v0.9.1', '2026-03-15T09:00:00Z', true),
+        makeRecentRaw('v0.9.0', '2026-02-01T08:00:00Z'),
+      ]),
+    )
+
+    const releases = await fetchRecentReleases()
+
+    expect(releases).toHaveLength(3)
+    expect(releases[0]).toEqual({
+      tag: 'v0.10.0',
+      publishedAt: '2026-04-01T12:00:00Z',
+      prerelease: false,
+    })
+    expect(releases[1]).toEqual({
+      tag: 'v0.9.1',
+      publishedAt: '2026-03-15T09:00:00Z',
+      prerelease: true,
+    })
+    expect(releases[2]?.tag).toBe('v0.9.0')
+  })
+
+  it('throws on HTTP 500 instead of returning an empty array', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({}, 500))
+
+    await expect(fetchRecentReleases()).rejects.toThrow(/HTTP 500/)
+  })
+
+  it('silently skips malformed entries and keeps the valid ones', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([
+        makeRecentRaw('v0.10.0', '2026-04-01T12:00:00Z'),
+        { tag_name: 'v0.9.1' }, // missing published_at + prerelease
+        null,
+        'not-a-release',
+        makeRecentRaw('v0.9.0', '2026-02-01T08:00:00Z'),
+      ]),
+    )
+
+    const releases = await fetchRecentReleases()
+
+    expect(releases).toHaveLength(2)
+    expect(releases.map((r) => r.tag)).toEqual(['v0.10.0', 'v0.9.0'])
+  })
+
+  it('honours the limit parameter via per_page and trims the result', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([
+        makeRecentRaw('v0.10.0', '2026-04-01T12:00:00Z'),
+        makeRecentRaw('v0.9.1', '2026-03-15T09:00:00Z'),
+        makeRecentRaw('v0.9.0', '2026-02-01T08:00:00Z'),
+      ]),
+    )
+
+    const releases = await fetchRecentReleases(2)
+
+    expect(releases).toHaveLength(2)
+    const call = fetchMock.mock.calls[0]
+    expect(call?.[0]).toMatch(/\/releases\?per_page=2$/)
+  })
+
+  it('sorts by publishedAt descending when GitHub returns out-of-order entries', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([
+        makeRecentRaw('v0.9.0', '2026-02-01T08:00:00Z'),
+        makeRecentRaw('v0.10.0', '2026-04-01T12:00:00Z'),
+        makeRecentRaw('v0.9.1', '2026-03-15T09:00:00Z'),
+      ]),
+    )
+
+    const releases = await fetchRecentReleases()
+
+    expect(releases.map((r) => r.tag)).toEqual(['v0.10.0', 'v0.9.1', 'v0.9.0'])
+  })
+
+  it('throws when the payload is not an array', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ wrong: 'shape' }))
+
+    await expect(fetchRecentReleases()).rejects.toThrow(/expected an array/i)
   })
 })
