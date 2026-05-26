@@ -157,12 +157,32 @@ async function attemptBootloaderEntry(
 }
 
 /**
+ * Baud-rate ladder used by `flashFirmware` when the initial rate trips on
+ * serial noise. Cheap CH340 cables / USB hubs that work at 115_200 routinely
+ * corrupt packets at 921_600; the ladder is "try the user's preferred rate,
+ * then progressively safer ones." Duplicates are filtered at runtime so
+ * `baudRate=460_800` still only attempts {460_800, 115_200}.
+ */
+const BAUD_FALLBACK_LADDER: readonly number[] = [460_800, 115_200]
+
+/** True when the bootloader-entry error looks baud-related — i.e. lowering
+ *  the rate is likely to help. Other errors should fail fast. */
+const isSerialNoiseError = (err: unknown): boolean => {
+  if (!(err instanceof Error)) return false
+  return /Invalid head of packet|Serial data stream stopped|noise or corruption/i.test(
+    err.message,
+  )
+}
+
+/**
  * Run a full erase + flash cycle against an ESP32 bridged over Web Serial.
  *
- * Attempts up to three reset variants (classic → inverted → usb-jtag) before
- * giving up. Mirrors the studio's main-process reset sequences (#482) — Web
- * Serial's setSignals is flakier than Node's serialport, so multiple passes
- * are needed to cover stubborn CH340 boards on macOS.
+ * Attempts up to three reset variants (classic → inverted → usb-jtag) at
+ * `baudRate`, then retries the whole pass at progressively lower rates from
+ * `BAUD_FALLBACK_LADDER` when the only failures look serial-noise-related.
+ * Mirrors the studio's main-process reset sequences (#482) — Web Serial's
+ * setSignals is flakier than Node's serialport, so multiple passes are needed
+ * to cover stubborn CH340 boards on macOS.
  */
 export async function flashFirmware(options: FlashRunOptions): Promise<void> {
   const {
@@ -188,32 +208,57 @@ export async function flashFirmware(options: FlashRunOptions): Promise<void> {
   let chip: string | null = null
   let lastError: unknown = null
 
-  for (let i = 0; i < RESET_VARIANT_ORDER.length; i++) {
-    const variant = RESET_VARIANT_ORDER[i]
-    if (!variant) continue
-    try {
-      const attempt = await attemptBootloaderEntry(port, variant, onLog, flashIdState, baudRate)
-      transport = attempt.transport
-      loader = attempt.loader
-      chip = attempt.chip
-      onLog(`Bootloader entered via ${variant} reset.\n`)
-      break
-    } catch (err) {
-      lastError = err
-      const message = err instanceof Error ? err.message : String(err)
-      onLog(`Reset variant ${variant} failed: ${message}\n`)
-      // Discard the failed transport before trying the next variant.
+  // De-dup the ladder against the requested rate, preserve order, drop higher
+  // rates than the user explicitly asked for (e.g. they pinned 115_200 — don't
+  // silently try anything faster).
+  const baudLadder: number[] = [baudRate]
+  for (const rung of BAUD_FALLBACK_LADDER) {
+    if (rung < baudRate && !baudLadder.includes(rung)) baudLadder.push(rung)
+  }
+
+  baudLadder: for (const currentBaud of baudLadder) {
+    if (currentBaud !== baudLadder[0]) {
+      onLog(`Retrying at lower baud rate ${String(currentBaud)}...\n`)
+    }
+
+    for (let i = 0; i < RESET_VARIANT_ORDER.length; i++) {
+      const variant = RESET_VARIANT_ORDER[i]
+      if (!variant) continue
       try {
-        await transport?.disconnect()
-      } catch {
-        /* swallow */
-      }
-      transport = null
-      loader = null
-      if (i < RESET_VARIANT_ORDER.length - 1) {
-        await sleepMs(RESET_PASS_GAP_MS)
+        const attempt = await attemptBootloaderEntry(
+          port,
+          variant,
+          onLog,
+          flashIdState,
+          currentBaud,
+        )
+        transport = attempt.transport
+        loader = attempt.loader
+        chip = attempt.chip
+        onLog(`Bootloader entered via ${variant} reset at ${String(currentBaud)} baud.\n`)
+        break baudLadder
+      } catch (err) {
+        lastError = err
+        const message = err instanceof Error ? err.message : String(err)
+        onLog(`Reset variant ${variant} failed: ${message}\n`)
+        // Inner cleanup is now redundant (attemptBootloaderEntry disconnects
+        // on failure) but kept as a belt-and-braces safety net.
+        try {
+          await transport?.disconnect()
+        } catch {
+          /* swallow */
+        }
+        transport = null
+        loader = null
+        if (i < RESET_VARIANT_ORDER.length - 1) {
+          await sleepMs(RESET_PASS_GAP_MS)
+        }
       }
     }
+
+    // If the last error doesn't look serial-noise-related, lowering baud
+    // won't help — bail out of the ladder early.
+    if (!isSerialNoiseError(lastError)) break
   }
 
   if (!loader || !transport || chip === null) {
