@@ -37,6 +37,34 @@ The panel is collapsed by default and never persists across reloads — power
 users re-set per session, which keeps the default flow boring and prevents a
 mis-configured default from haunting a non-technical user.
 
+## Simulation mode (dev-only)
+
+For UI work without a CANShift dash plugged in, the flasher ships a fake
+flash pipeline. It bypasses Web Serial entirely, so every state in the state
+machine (`idle → ready → flashing → success | failed`) can be walked from a
+clean checkout.
+
+Two ways to enable it:
+
+```bash
+# Query-string overrides — easiest, no rebuild needed.
+#   ?sim=1        — alias for ?sim=success
+#   ?sim=success  — happy path, lands on success.
+#   ?sim=fail     — lands on failed with a recognisable error.
+http://localhost:5180/?sim=success
+
+# Build-time flag — drop a `.env.sim` containing `VITE_SIM=1` and run:
+npm run dev -- --mode sim
+
+# Or ad-hoc in the shell:
+VITE_SIM=success npm run dev
+```
+
+When sim mode is active, a small `(sim)` badge appears at the top of the
+flasher card so it's obvious the bytes aren't hitting real silicon. The
+production-flash code paths in `lib/esptool.ts` and `lib/firmware.ts` carry
+no conditional logic — sim mode never reaches them.
+
 ## Stack
 
 - [Vite](https://vitejs.dev/) + [React 19](https://react.dev/) + TypeScript (strict)

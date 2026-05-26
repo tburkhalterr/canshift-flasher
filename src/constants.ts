@@ -87,6 +87,18 @@ export const MERGED_FLASH_OFFSET = 0x0
 export const SPIFFS_FLASH_OFFSET = 0x310000
 
 /**
+ * Build-time simulation flag.
+ *
+ * Set to `'1'` / `'success'` / `'fail'` by `npm run dev -- --mode sim`
+ * (which loads `.env.sim` containing `VITE_SIM=1`) or by an ad-hoc
+ * `VITE_SIM=success` in the shell. Empty / unset means the flasher talks to
+ * real hardware. Read once at module load — toggling at runtime is not
+ * supported. The query-string overrides (`?sim=success`, `?sim=fail`,
+ * `?sim=1`) live in `lib/sim.ts` and take precedence over this value.
+ */
+export const VITE_SIM: string | undefined = import.meta.env.VITE_SIM as string | undefined
+
+/**
  * Telemetry collection endpoint. Opt-in only — there is no default.
  *
  * When unset (the stock build), all telemetry calls are no-ops. When set

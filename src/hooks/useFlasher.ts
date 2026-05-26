@@ -15,6 +15,7 @@ import {
 } from '../lib/firmware'
 import { verifyFirmwareSha256 } from '../lib/integrity'
 import { fetchLatestRelease, fetchReleaseByTag, type Release } from '../lib/releases'
+import { isSimEnabled, simFlash, simSelectPort } from '../lib/sim'
 import { classifyError, sendTelemetry } from '../lib/telemetry'
 
 /**
@@ -116,6 +117,12 @@ export function useFlasher(): FlasherStatus & FlasherActions {
   }, [])
 
   const selectPort = useCallback(async () => {
+    if (isSimEnabled()) {
+      const port = simSelectPort()
+      portRef.current = port
+      setStatus((prev) => ({ ...prev, port, state: 'ready', errorMessage: null }))
+      return
+    }
     try {
       const port = await navigator.serial.requestPort({ filters: SUPPORTED_USB_FILTERS })
       portRef.current = port
@@ -171,6 +178,28 @@ export function useFlasher(): FlasherStatus & FlasherActions {
       flashProgress: null,
       log: '',
     }))
+
+    // Sim mode: bypass Web Serial entirely. No download, no SHA, no esptool —
+    // production paths in firmware.ts / esptool.ts stay free of conditionals.
+    if (isSimEnabled()) {
+      try {
+        await simFlash({
+          onLog: appendLog,
+          onProgress: (progress) => {
+            setStatus((prev) => ({ ...prev, flashProgress: progress }))
+          },
+          onChipInfo: (chip) => {
+            setStatus((prev) => ({ ...prev, chipInfo: chip }))
+          },
+        })
+        setStatus((prev) => ({ ...prev, state: 'success' }))
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error'
+        appendLog(`\nError: ${message}\n`)
+        setStatus((prev) => ({ ...prev, state: 'failed', errorMessage: message }))
+      }
+      return
+    }
 
     const startedAt = performance.now()
     let detectedChip: string | null = null
@@ -395,6 +424,24 @@ export function useFlasher(): FlasherStatus & FlasherActions {
   // StrictMode safe: the cleanup removes the same handler instances added.
   useEffect(() => {
     let cancelled = false
+
+    // Sim mode: auto-promote idle → ready with a fake port so contributors
+    // land on the "Flash latest" button on first paint. Deferred via Promise
+    // microtask to satisfy `react-hooks/set-state-in-effect`.
+    if (isSimEnabled()) {
+      void Promise.resolve().then(() => {
+        if (cancelled) return
+        const port = simSelectPort()
+        portRef.current = port
+        setStatus((prev) => {
+          if (prev.state !== 'idle') return prev
+          return { ...prev, port, state: 'ready', errorMessage: null }
+        })
+      })
+      return () => {
+        cancelled = true
+      }
+    }
 
     const promoteIfSingleMatch = async (): Promise<void> => {
       const port = await findSingleSupportedPort()

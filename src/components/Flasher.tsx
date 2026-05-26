@@ -10,6 +10,7 @@ import {
   formatPortInfo,
 } from '../lib/format'
 import type { Release } from '../lib/releases'
+import { isSimEnabled } from '../lib/sim'
 
 import { HelpZone } from './HelpZone'
 import { LogStream } from './LogStream'
@@ -124,9 +125,20 @@ export function Flasher({ webSerialSupported }: FlasherProps): ReactElement {
 
   return (
     <div className="space-y-6">
+      {isSimEnabled() ? <SimBadge /> : null}
       <StepGuide state={flasher.state} />
       {renderStateView(flasher)}
       <HelpZone />
+    </div>
+  )
+}
+
+function SimBadge(): ReactElement {
+  return (
+    <div className="flex items-center justify-center">
+      <span className="inline-flex items-center rounded-full border border-warning/60 bg-surface-2 px-3 py-1 font-display text-xs uppercase tracking-[0.18em] text-warning">
+        (sim)
+      </span>
     </div>
   )
 }
