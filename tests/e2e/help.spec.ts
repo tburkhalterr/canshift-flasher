@@ -11,8 +11,11 @@ const TOPIC_TITLES: readonly string[] = [
 ]
 
 test.describe('HelpZone troubleshooting section', () => {
-  test('exposes 6 topic tabs and reveals content on click', async ({ page }) => {
+  test('opens from the side drawer and reveals content on click', async ({ page }) => {
     await page.goto('/')
+
+    // Drawer is closed by default — only the "Open help" handle is shown.
+    await page.getByRole('button', { name: 'Open troubleshooting help' }).click()
 
     const helpZone = page.getByRole('region', { name: 'Troubleshooting' })
     await expect(helpZone).toBeVisible()

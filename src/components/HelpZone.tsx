@@ -14,6 +14,24 @@ interface Topic {
 // Inline SVG icons — no external icon library, CSP-friendly. All 16px square,
 // `currentColor` so parent text colour drives the stroke/fill.
 
+const CloseIcon = (): ReactElement => (
+  <svg
+    aria-hidden="true"
+    focusable="false"
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+)
+
 const HelpIcon = (): ReactElement => (
   <svg
     aria-hidden="true"
@@ -229,22 +247,38 @@ const TOPICS: readonly Topic[] = [
   },
 ] as const
 
-export const HelpZone = (): ReactElement => {
+interface HelpZoneProps {
+  onClose?: () => void
+}
+
+export const HelpZone = ({ onClose }: HelpZoneProps = {}): ReactElement => {
   const [openTopic, setOpenTopic] = useState<string | null>(null)
   const activeTopic = TOPICS.find((topic) => topic.question === openTopic) ?? null
 
   return (
     <section
       aria-labelledby="help-zone-title"
-      className="mt-2 rounded-md border border-border bg-surface px-4 py-4 text-sm text-text-dim"
+      className="text-sm text-text-dim"
     >
-      <h2
-        id="help-zone-title"
-        className="flex items-center gap-2 font-display text-sm uppercase tracking-[0.15em] text-text"
-      >
-        <HelpIcon />
-        Troubleshooting
-      </h2>
+      <div className="flex items-center justify-between">
+        <h2
+          id="help-zone-title"
+          className="flex items-center gap-2 font-display text-sm uppercase tracking-[0.15em] text-text"
+        >
+          <HelpIcon />
+          Troubleshooting
+        </h2>
+        {onClose ? (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close help"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-surface-2 hover:text-text focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            <CloseIcon />
+          </button>
+        ) : null}
+      </div>
 
       <div role="tablist" aria-label="Troubleshooting topics" className="mt-4 flex flex-wrap gap-2">
         {TOPICS.map((topic) => {
