@@ -112,6 +112,15 @@ function toRelease(raw: GitHubRelease): Release {
   }
 }
 
+class GitHubHttpError extends Error {
+  readonly status: number
+  constructor(status: number) {
+    super(`GitHub API returned HTTP ${String(status)}`)
+    this.name = 'GitHubHttpError'
+    this.status = status
+  }
+}
+
 async function fetchJsonWithTimeout(url: string): Promise<unknown> {
   const controller = new AbortController()
   const timer = setTimeout(() => {
@@ -123,7 +132,7 @@ async function fetchJsonWithTimeout(url: string): Promise<unknown> {
       signal: controller.signal,
     })
     if (!response.ok) {
-      throw new Error(`GitHub API returned HTTP ${String(response.status)}`)
+      throw new GitHubHttpError(response.status)
     }
     return (await response.json()) as unknown
   } finally {
@@ -132,32 +141,56 @@ async function fetchJsonWithTimeout(url: string): Promise<unknown> {
 }
 
 /**
+ * Pick the newest entry from `/releases`. GitHub returns the list sorted by
+ * `created_at` descending. When `INCLUDE_PRERELEASE` is set, the first
+ * pre-release wins; otherwise the first non-draft (which may still be a
+ * pre-release if that's all there is) wins.
+ */
+async function fetchFromReleasesList(): Promise<Release> {
+  const url = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=20`
+  const payload = await fetchJsonWithTimeout(url)
+  if (!Array.isArray(payload)) {
+    throw new Error('GitHub API: expected an array of releases')
+  }
+  const releases = payload.filter(isRelease)
+  const candidate = INCLUDE_PRERELEASE
+    ? (releases.find((r) => r.prerelease) ?? releases[0])
+    : releases[0]
+  if (!candidate) {
+    throw new Error('GitHub API: no releases available')
+  }
+  return toRelease(candidate)
+}
+
+/**
  * Fetches the latest release metadata from GitHub.
  *
- * Default flow uses `/releases/latest` which already skips pre-releases and
- * drafts. With `?prerelease=1`, the function lists recent releases and picks
- * the first pre-release entry (GitHub returns them sorted by `created_at`
- * descending).
+ * Default flow tries `/releases/latest` first — fastest path when stable
+ * releases exist. `/releases/latest` returns 404 when the repo has only
+ * pre-releases or drafts, in which case we fall back to `/releases` and
+ * pick the most recent entry there (which is what the user actually wants
+ * to flash on a prerelease-only repo). With `?prerelease=1`, we skip the
+ * stable-only endpoint entirely and pick the first pre-release.
  */
 export async function fetchLatestRelease(): Promise<Release> {
   if (INCLUDE_PRERELEASE) {
-    const url = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=20`
+    return fetchFromReleasesList()
+  }
+  try {
+    const url = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`
     const payload = await fetchJsonWithTimeout(url)
-    if (!Array.isArray(payload)) {
-      throw new Error('GitHub API: expected an array of releases')
+    if (!isRelease(payload)) {
+      throw new Error('GitHub API: latest release payload was malformed')
     }
-    const releases = payload.filter(isRelease)
-    const candidate = releases.find((r) => r.prerelease) ?? releases[0]
-    if (!candidate) {
-      throw new Error('GitHub API: no releases available')
+    return toRelease(payload)
+  } catch (err) {
+    // 404 on `/releases/latest` is the expected response when the repo has
+    // only pre-releases — fall through to the list endpoint instead of
+    // surfacing a scary error in the console. Other HTTP failures and
+    // malformed payloads still bubble up.
+    if (err instanceof GitHubHttpError && err.status === 404) {
+      return fetchFromReleasesList()
     }
-    return toRelease(candidate)
+    throw err
   }
-
-  const url = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`
-  const payload = await fetchJsonWithTimeout(url)
-  if (!isRelease(payload)) {
-    throw new Error('GitHub API: latest release payload was malformed')
-  }
-  return toRelease(payload)
 }
