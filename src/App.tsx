@@ -3,21 +3,17 @@ import { useMemo, type ReactElement } from 'react'
 
 import { CanshiftLogo } from './components/CanshiftLogo'
 import { Flasher } from './components/Flasher'
+import { HelpZone } from './components/HelpZone'
 import { BUILD_DATE, BUILD_SHA } from './constants'
 import { isWebSerialSupported } from './lib/browser'
 
-// Single-card layout mirrors canshift-studio's BootScreen treatment:
-// centered, dark, sober. Max-width keeps the card readable on wide screens.
-// The GitHub link in the top-right corner points at the main CANShift repo
-// (firmware + studio + mobile), not at this flasher sub-project — the footer
-// link below handles the flasher repo.
+// App-shell layout: header / (main + aside) / footer fills the viewport.
+// Primary task (flashing) sits in `main`; help reference lives in `aside` on
+// lg+ and stacks below main on smaller widths.
 const CANSHIFT_REPO_URL = 'https://github.com/tburkhalterr/CANShift'
-
 const FLASHER_REPO_URL = 'https://github.com/tburkhalterr/canshift-flasher'
 
 const formatBuildDate = (iso: string): string => {
-  // Footer only needs the YYYY-MM-DD slice of the ISO timestamp. Guard
-  // against the 'unknown' / malformed fallback path.
   const match = /^\d{4}-\d{2}-\d{2}/.exec(iso)
   return match ? match[0] : iso
 }
@@ -27,58 +23,63 @@ export function App(): ReactElement {
   const buildDate = formatBuildDate(BUILD_DATE)
 
   return (
-    <>
-      <a
-        href={CANSHIFT_REPO_URL}
-        target="_blank"
-        rel="noreferrer"
-        aria-label="CANShift on GitHub"
-        className="fixed right-4 top-4 z-10 inline-flex h-9 w-9 items-center justify-center rounded-md text-text-muted transition hover:bg-surface hover:text-text focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-bg sm:right-6 sm:top-6"
-      >
-        <GithubIcon />
-      </a>
-
-      <main className="mx-auto flex min-h-full w-full max-w-2xl md:max-w-4xl flex-col items-center gap-8 px-4 py-12 sm:px-6">
-        <header className="flex flex-col items-center gap-3">
+    <div className="flex min-h-screen flex-col bg-bg text-text">
+      <header className="flex items-center justify-between border-b border-border bg-surface px-4 py-3 sm:px-6">
+        <div className="flex items-center gap-3">
           <CanshiftLogo />
-          <p className="font-display text-xs uppercase tracking-[0.18em] text-text-muted">
+          <span className="hidden font-display text-xs uppercase tracking-[0.18em] text-text-muted sm:inline">
             Firmware Flasher
-          </p>
-        </header>
+          </span>
+        </div>
+        <a
+          href={CANSHIFT_REPO_URL}
+          target="_blank"
+          rel="noreferrer"
+          aria-label="CANShift on GitHub"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-text-muted transition hover:bg-surface-2 hover:text-text focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-bg"
+        >
+          <GithubIcon />
+        </a>
+      </header>
 
-        <section className="w-full rounded-md border border-border bg-surface p-6 shadow-lg sm:p-8">
-          <Flasher webSerialSupported={webSerialSupported} />
-        </section>
+      <div className="flex flex-1 flex-col lg:flex-row lg:overflow-hidden">
+        <main className="flex-1 px-4 py-8 sm:px-6 lg:overflow-y-auto lg:px-10 lg:py-10">
+          <section className="mx-auto w-full max-w-3xl rounded-md border border-border bg-surface p-6 shadow-lg sm:p-8">
+            <Flasher webSerialSupported={webSerialSupported} />
+          </section>
+        </main>
+        <aside
+          aria-label="Help"
+          className="border-t border-border bg-surface/40 px-4 py-6 sm:px-6 lg:w-96 lg:flex-none lg:overflow-y-auto lg:border-l lg:border-t-0 lg:px-6 lg:py-10"
+        >
+          <HelpZone />
+        </aside>
+      </div>
 
-        <footer className="flex flex-col items-center gap-2 text-center text-xs text-text-muted">
-          <p>First flash · Update · Recovery — same flow.</p>
-          <p>
-            Open source —{' '}
-            <a
-              href={FLASHER_REPO_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="underline-offset-4 hover:underline"
-            >
-              tburkhalterr/canshift-flasher
-            </a>
-            .
-          </p>
-          <p className="text-xs text-text-muted">
-            build{' '}
-            <a
-              href={`${FLASHER_REPO_URL}/commit/${BUILD_SHA}`}
-              target="_blank"
-              rel="noreferrer"
-              className="underline-offset-4 hover:underline"
-            >
-              {BUILD_SHA}
-            </a>{' '}
-            · {buildDate}
-          </p>
-        </footer>
-      </main>
-    </>
+      <footer className="border-t border-border px-4 py-3 text-center text-xs text-text-muted sm:px-6">
+        <p>
+          First flash · Update · Recovery — same flow ·{' '}
+          <a
+            href={FLASHER_REPO_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="underline-offset-4 hover:underline"
+          >
+            tburkhalterr/canshift-flasher
+          </a>
+          {' · build '}
+          <a
+            href={`${FLASHER_REPO_URL}/commit/${BUILD_SHA}`}
+            target="_blank"
+            rel="noreferrer"
+            className="underline-offset-4 hover:underline"
+          >
+            {BUILD_SHA}
+          </a>{' '}
+          · {buildDate}
+        </p>
+      </footer>
+    </div>
   )
 }
 

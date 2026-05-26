@@ -11,7 +11,6 @@ import { ReadyView } from './flasher/ReadyView'
 import { SimBadge } from './flasher/SimBadge'
 import { SuccessView } from './flasher/SuccessView'
 import { UnsupportedBrowser } from './flasher/UnsupportedBrowser'
-import { HelpZone } from './HelpZone'
 import { StepGuide } from './StepGuide'
 
 interface FlasherProps {
@@ -91,7 +90,6 @@ export const Flasher = ({ webSerialSupported }: FlasherProps): ReactElement => {
         <StepGuide state={flasher.state} />
         <div className="md:border-l md:border-border md:pl-6">{renderStateView(flasher)}</div>
       </div>
-      <HelpZone />
     </div>
   )
 }
