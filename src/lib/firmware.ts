@@ -40,7 +40,10 @@ export async function downloadFirmware(
   onProgress: (p: FirmwareDownloadProgress) => void,
   signal?: AbortSignal,
 ): Promise<FirmwareBinary> {
-  const requestInit: RequestInit = { cache: 'no-store' }
+  const requestInit: RequestInit = {
+    cache: 'no-store',
+    headers: githubAssetHeaders(url),
+  }
   if (signal) requestInit.signal = signal
 
   const response = await fetch(url, requestInit)
@@ -89,6 +92,19 @@ export async function downloadFirmware(
 
   const bytes = concatChunks(chunks, loaded)
   return { bytes, size: loaded }
+}
+
+/**
+ * GitHub release assets are downloaded via `api.github.com/repos/.../releases/assets/{id}`,
+ * which requires `Accept: application/octet-stream` to return the binary instead
+ * of the JSON metadata. Other origins (canshift.tmbk.ch fallback, etc.) get no
+ * special header and behave like a plain static download.
+ */
+function githubAssetHeaders(url: string): HeadersInit {
+  if (url.startsWith('https://api.github.com/')) {
+    return { Accept: 'application/octet-stream' }
+  }
+  return {}
 }
 
 function concatChunks(chunks: readonly Uint8Array[], total: number): Uint8Array {

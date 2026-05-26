@@ -120,10 +120,18 @@ async function fetchManifestText(manifestUrl: string): Promise<string> {
   const timer = setTimeout(() => {
     controller.abort()
   }, MANIFEST_FETCH_TIMEOUT_MS)
+  // `api.github.com/.../releases/assets/{id}` returns the asset content (bytes)
+  // when asked for `application/octet-stream` and JSON metadata otherwise. The
+  // `.sha256` sibling is published as a regular release asset, so the same
+  // Accept header rule applies as for the binary download.
+  const headers: HeadersInit = manifestUrl.startsWith('https://api.github.com/')
+    ? { Accept: 'application/octet-stream' }
+    : {}
   try {
     const response = await fetch(manifestUrl, {
       cache: 'no-store',
       signal: controller.signal,
+      headers,
     })
     if (!response.ok) {
       throw new Error(`HTTP ${String(response.status)} ${response.statusText}`)
