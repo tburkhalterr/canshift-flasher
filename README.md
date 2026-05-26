@@ -29,6 +29,7 @@ avoid polluting the monorepo CI and to host independently.
 - [Threat model](#threat-model)
 - [Brand assets](#brand-assets)
   - [One-command sync](#one-command-sync)
+  - [Illustrations](#illustrations)
 - [License](#license)
 
 ## What it does
@@ -367,6 +368,14 @@ repos are not checked out next to this one.
 The script is **not** wired into CI — sibling repos are not available
 there. It is a maintenance-time tool only; the manual sync paragraph above
 remains the fallback for ad-hoc updates.
+
+### Illustrations
+
+The dash illustrations under `src/components/flasher/illustrations/` are
+abstract SVGs designed to swap with real assets later. Replacing the
+`<DashIllustration>` component's variant paths with photo SVGs / WebPs is
+the only change required — the call sites in each flasher view stay
+untouched.
 
 ## License
 

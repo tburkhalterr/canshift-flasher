@@ -5,6 +5,7 @@ import type { AdvancedOptions } from '../../hooks/useFlasher'
 import { formatPortInfo } from '../../lib/format'
 
 import { AdvancedPanel } from './AdvancedPanel'
+import { DashIllustration } from './illustrations/DashIllustration'
 import { PRIMARY_CTA_CLASSES } from './styles'
 
 interface ReadyViewProps {
@@ -26,6 +27,10 @@ export const ReadyView = ({
 }: ReadyViewProps): ReactElement => {
   return (
     <section className="space-y-6">
+      <div className="flex justify-center">
+        <DashIllustration variant="ready" />
+      </div>
+
       <div className="rounded-md border border-border bg-surface-2 px-4 py-3 text-sm text-text-dim">
         Connected:{' '}
         <span className="font-mono text-text">{port ? formatPortInfo(port) : '—'}</span>

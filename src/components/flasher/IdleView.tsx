@@ -4,6 +4,7 @@ import type { ReactElement } from 'react'
 import type { Release } from '../../lib/releases'
 
 import { ErrorBanner } from './ErrorBanner'
+import { DashIllustration } from './illustrations/DashIllustration'
 import { ReleaseSummary } from './ReleaseSummary'
 import { PRIMARY_CTA_CLASSES, SECTION_HEADER_CLASSES } from './styles'
 
@@ -16,11 +17,18 @@ interface IdleViewProps {
 export const IdleView = ({ onConnect, errorMessage, release }: IdleViewProps): ReactElement => {
   return (
     <section className="space-y-6">
+      <div className="flex flex-col items-center gap-3">
+        <DashIllustration variant="idle" />
+        <p className="text-sm leading-relaxed text-text-dim">
+          Plug your dash in via USB to begin.
+        </p>
+      </div>
+
       <div className="space-y-2">
         <h2 className={SECTION_HEADER_CLASSES}>Flash your CANShift dash</h2>
         <p className="text-sm leading-relaxed text-text-dim">
-          Plug your dash in via USB and click Connect. The same flow covers a first flash,
-          a normal update, and recovery from a broken update.
+          The same flow covers a first flash, a normal update, and recovery from a broken
+          update.
         </p>
       </div>
 
