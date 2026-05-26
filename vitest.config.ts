@@ -2,8 +2,18 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
 
+// Match `vite.config.ts`'s build-provenance defines so modules that read
+// `__BUILD_SHA__` / `__BUILD_DATE__` keep type-checking and resolve to a
+// stable mock value under Vitest (no git shell-out during unit tests).
+const TEST_BUILD_SHA = 'testsha1'
+const TEST_BUILD_DATE = '2026-01-01T00:00:00.000Z'
+
 export default defineConfig({
   plugins: [react()],
+  define: {
+    __BUILD_SHA__: JSON.stringify(TEST_BUILD_SHA),
+    __BUILD_DATE__: JSON.stringify(TEST_BUILD_DATE),
+  },
   test: {
     environment: 'jsdom',
     globals: true,

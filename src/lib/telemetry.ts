@@ -12,7 +12,7 @@
 // Users can opt out per-browser by setting:
 //   localStorage['canshift-flasher.telemetry.optout'] = '1'
 
-import { TELEMETRY_URL } from '../constants'
+import { BUILD_SHA, TELEMETRY_URL } from '../constants'
 
 import { BootloaderEntryError, FlashIdError } from './esptool'
 import { FirmwareDownloadError } from './firmware'
@@ -43,6 +43,13 @@ export interface TelemetryEvent {
   flashMs: number | null
   errorClass: TelemetryErrorClass | null
 }
+
+/**
+ * Git short SHA of the currently-running build, injected at build time via
+ * `vite.config.ts`'s `define`. Appended to every outbound telemetry payload
+ * so dashboards can correlate regressions with commits.
+ */
+const TELEMETRY_BUILD_SHA = BUILD_SHA
 
 const OPT_OUT_STORAGE_KEY = 'canshift-flasher.telemetry.optout'
 
@@ -153,6 +160,7 @@ export async function sendTelemetry(event: TelemetryEvent): Promise<void> {
     const browser = await detectBrowser(ua.browser)
     const body = JSON.stringify({
       ...event,
+      buildSha: TELEMETRY_BUILD_SHA,
       browser,
       os: ua.os,
     })
