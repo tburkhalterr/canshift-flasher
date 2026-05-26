@@ -6,6 +6,7 @@ import { LogStream } from '../LogStream'
 import { ProgressBar } from '../ProgressBar'
 
 import { DashIllustration } from './illustrations/DashIllustration'
+import { SECONDARY_CTA_CLASSES } from './styles'
 
 interface FlashingViewProps {
   downloadProgress: { loaded: number; total: number | null } | null
@@ -80,15 +81,15 @@ export const FlashingView = ({
         label={flashLabel}
       />
 
-      {canCancel ? (
-        <button
-          type="button"
-          onClick={onCancel}
-          className="text-sm text-text-muted underline-offset-4 hover:underline"
-        >
-          Cancel
-        </button>
-      ) : null}
+      <button
+        type="button"
+        onClick={onCancel}
+        disabled={!canCancel}
+        aria-label={canCancel ? 'Cancel firmware download' : 'Cancel unavailable — writing flash'}
+        className={`w-full sm:w-auto ${SECONDARY_CTA_CLASSES} disabled:cursor-not-allowed disabled:opacity-50`}
+      >
+        {canCancel ? 'Cancel' : 'Cancel unavailable — writing flash'}
+      </button>
 
       <LogStream log={log} />
     </section>
