@@ -3,18 +3,13 @@ import { useCallback, useRef, useState } from 'react'
 
 import {
   DEFAULT_ADVANCED_OPTIONS,
-  FIRMWARE_URL,
   SUPPORTED_USB_FILTERS,
   type AdvancedBaudRate,
 } from '../constants'
 import { flashFirmware, type FlashProgress } from '../lib/esptool'
-import {
-  downloadFirmware,
-  downloadFirmwareBundle,
-  type FirmwareDownloadProgress,
-} from '../lib/firmware'
-import { verifyFirmwareSha256 } from '../lib/integrity'
-import { fetchReleaseByTag, type Release } from '../lib/releases'
+import { type FirmwareDownloadProgress } from '../lib/firmware'
+import { acquirePayload, resolveActiveRelease, verifyPayload } from '../lib/flash-flow'
+import { type Release } from '../lib/releases'
 import { isSimEnabled, simFlash, simSelectPort } from '../lib/sim'
 import { classifyError, sendTelemetry } from '../lib/telemetry'
 
@@ -38,6 +33,48 @@ export interface AdvancedOptions {
 
 const DISCONNECT_DURING_FLASH_MESSAGE =
   'USB connection lost mid-flash — re-plug the dash and click Retry.'
+
+/**
+ * Reset the bits of status that should be cleared each time `flash()` starts:
+ * progress trackers, error message, chip info, log. Pure helper to keep the
+ * orchestrator readable.
+ */
+const initFlashingStatus = (prev: FlasherStatus): FlasherStatus => ({
+  ...prev,
+  state: 'flashing',
+  errorMessage: null,
+  chipInfo: null,
+  downloadProgress: { loaded: 0, total: null },
+  spiffsDownloadProgress: null,
+  flashProgress: null,
+  log: '',
+})
+
+/**
+ * Sim-mode short-circuit: replace Web Serial / download / SHA / esptool with
+ * a scripted fake flash. Keeps production paths free of `if (sim)` branches.
+ */
+const runSimFlash = async (
+  appendLog: (line: string) => void,
+  setStatus: React.Dispatch<React.SetStateAction<FlasherStatus>>,
+): Promise<void> => {
+  try {
+    await simFlash({
+      onLog: appendLog,
+      onProgress: (progress) => {
+        setStatus((prev) => ({ ...prev, flashProgress: progress }))
+      },
+      onChipInfo: (chip) => {
+        setStatus((prev) => ({ ...prev, chipInfo: chip }))
+      },
+    })
+    setStatus((prev) => ({ ...prev, state: 'success' }))
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    appendLog(`\nError: ${message}\n`)
+    setStatus((prev) => ({ ...prev, state: 'failed', errorMessage: message }))
+  }
+}
 
 export type FlasherState = 'idle' | 'ready' | 'flashing' | 'success' | 'failed'
 
@@ -77,7 +114,7 @@ export interface FlasherActions {
   setAdvanced: (opts: AdvancedOptions) => void
 }
 
-export function useFlasher(): FlasherStatus & FlasherActions {
+export const useFlasher = (): FlasherStatus & FlasherActions => {
   const { release, releaseRef } = useLatestRelease()
   const [status, setStatus] = useState<FlasherStatus>(INITIAL_STATUS)
   const portRef = useRef<SerialPort | null>(null)
@@ -146,36 +183,10 @@ export function useFlasher(): FlasherStatus & FlasherActions {
     }
 
     logBufferRef.current = ''
-    setStatus((prev) => ({
-      ...prev,
-      state: 'flashing',
-      errorMessage: null,
-      chipInfo: null,
-      downloadProgress: { loaded: 0, total: null },
-      spiffsDownloadProgress: null,
-      flashProgress: null,
-      log: '',
-    }))
+    setStatus(initFlashingStatus)
 
-    // Sim mode: bypass Web Serial entirely. No download, no SHA, no esptool —
-    // production paths in firmware.ts / esptool.ts stay free of conditionals.
     if (isSimEnabled()) {
-      try {
-        await simFlash({
-          onLog: appendLog,
-          onProgress: (progress) => {
-            setStatus((prev) => ({ ...prev, flashProgress: progress }))
-          },
-          onChipInfo: (chip) => {
-            setStatus((prev) => ({ ...prev, chipInfo: chip }))
-          },
-        })
-        setStatus((prev) => ({ ...prev, state: 'success' }))
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error'
-        appendLog(`\nError: ${message}\n`)
-        setStatus((prev) => ({ ...prev, state: 'failed', errorMessage: message }))
-      }
+      await runSimFlash(appendLog, setStatus)
       return
     }
 
@@ -207,80 +218,23 @@ export function useFlasher(): FlasherStatus & FlasherActions {
     try {
       const advanced = advancedRef.current
       const overrideTag = advanced.versionOverride?.trim() ?? ''
-      let activeRelease: Release | null = releaseRef.current
-      if (overrideTag.length > 0) {
-        appendLog(`Fetching release "${overrideTag}" (version override)...\n`)
-        activeRelease = await fetchReleaseByTag(overrideTag)
-      }
-      const firmwareUrl = activeRelease?.firmwareAsset?.url ?? null
-      const bundleRelease: Release | null =
-        activeRelease !== null && firmwareUrl !== null ? activeRelease : null
-      if (!activeRelease) {
-        console.warn('Release metadata unavailable — falling back to FIRMWARE_URL.')
-        appendLog('Release metadata unavailable — falling back to static URL.\n')
-      } else if (!firmwareUrl) {
-        console.warn(
-          'Latest release has no firmware asset matching the merged image pattern — falling back to FIRMWARE_URL.',
-        )
-        appendLog('Latest release missing firmware asset — falling back to static URL.\n')
-      }
+      const activeRelease: Release | null = await resolveActiveRelease(
+        releaseRef.current,
+        overrideTag,
+        appendLog,
+      )
+      const payload = await acquirePayload(activeRelease, abortController.signal, {
+        onLog: appendLog,
+        onProgress: (p) => {
+          setStatus((prev) => ({
+            ...prev,
+            downloadProgress: p.firmware ?? prev.downloadProgress,
+            spiffsDownloadProgress: p.spiffs,
+          }))
+        },
+      })
 
-      let firmwareBytes: Uint8Array
-      let firmwareManifestUrl: string
-      let spiffsBytes: Uint8Array | null = null
-      let spiffsManifestUrl: string | null = null
-
-      if (bundleRelease) {
-        if (bundleRelease.spiffsAsset) {
-          appendLog(`Downloading firmware v${bundleRelease.version} + SPIFFS...\n`)
-        } else {
-          appendLog(`Downloading firmware v${bundleRelease.version}...\n`)
-        }
-        const bundle = await downloadFirmwareBundle(
-          bundleRelease,
-          (p) => {
-            setStatus((prev) => ({
-              ...prev,
-              downloadProgress: p.firmware ?? prev.downloadProgress,
-              spiffsDownloadProgress: p.spiffs,
-            }))
-          },
-          abortController.signal,
-        )
-        firmwareBytes = bundle.firmware.bytes
-        firmwareManifestUrl = bundle.firmwareManifestUrl
-        spiffsBytes = bundle.spiffs?.bytes ?? null
-        spiffsManifestUrl = bundle.spiffsManifestUrl
-        appendLog(`Downloaded firmware ${firmwareBytes.byteLength} bytes.\n`)
-        if (spiffsBytes) {
-          appendLog(`Downloaded SPIFFS ${spiffsBytes.byteLength} bytes.\n`)
-        }
-      } else {
-        appendLog('Downloading firmware...\n')
-        const downloadUrl = FIRMWARE_URL
-        const { bytes } = await downloadFirmware(
-          downloadUrl,
-          (dl) => {
-            setStatus((prev) => ({ ...prev, downloadProgress: dl }))
-          },
-          abortController.signal,
-        )
-        firmwareBytes = bytes
-        firmwareManifestUrl = `${downloadUrl}.sha256`
-        appendLog(`Downloaded ${firmwareBytes.byteLength} bytes.\n`)
-      }
-
-      // Mandatory SHA-256 verification (#4). A missing or malformed `.sha256`
-      // sibling is a hard fail — there is no opt-out flag. Same gate for the
-      // FIRMWARE_URL fallback path and for the SPIFFS partition.
-      appendLog('Verifying firmware SHA-256...\n')
-      const fwDigest = await verifyFirmwareSha256(firmwareBytes, firmwareManifestUrl)
-      appendLog(`Firmware SHA-256 OK (${fwDigest}).\n`)
-      if (spiffsBytes && spiffsManifestUrl) {
-        appendLog('Verifying SPIFFS SHA-256...\n')
-        const spiffsDigest = await verifyFirmwareSha256(spiffsBytes, spiffsManifestUrl)
-        appendLog(`SPIFFS SHA-256 OK (${spiffsDigest}).\n`)
-      }
+      await verifyPayload(payload, appendLog)
 
       // Once writeFlash is about to start, cancellation is no longer offered —
       // drop the controller so the UI hides the Cancel button.
@@ -295,8 +249,8 @@ export function useFlasher(): FlasherStatus & FlasherActions {
 
       await flashFirmware({
         port,
-        firmware: firmwareBytes,
-        ...(spiffsBytes ? { spiffs: spiffsBytes } : {}),
+        firmware: payload.firmwareBytes,
+        ...(payload.spiffsBytes ? { spiffs: payload.spiffsBytes } : {}),
         onLog: appendLog,
         onProgress: (progress) => {
           setStatus((prev) => ({ ...prev, flashProgress: progress }))
