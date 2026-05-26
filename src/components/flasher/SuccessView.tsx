@@ -2,6 +2,7 @@
 import type { ReactElement } from 'react'
 
 import { DASH_AP_SSID, DASH_HOSTNAME } from '../../constants'
+import { downloadProfileJson, type SelectedEcuProfile } from '../../lib/profiles/catalog'
 import type { Release } from '../../lib/releases'
 import { LogStream } from '../LogStream'
 
@@ -17,6 +18,7 @@ interface SuccessViewProps {
   port: SerialPort | null
   release: Release | null
   logTruncated: boolean
+  ecuProfile: SelectedEcuProfile | null
 }
 
 // Shared SVG props for the inline step icons — single colour, currentColor.
@@ -67,6 +69,7 @@ export const SuccessView = ({
   port,
   release,
   logTruncated,
+  ecuProfile,
 }: SuccessViewProps): ReactElement => {
   const heading = release ? `Flashed v${release.version} successfully` : 'Flashed successfully'
   return (
@@ -101,6 +104,27 @@ export const SuccessView = ({
           into the address bar to reach Studio on the ESP32.
         </StepCard>
       </div>
+
+      {ecuProfile && ecuProfile.signals.signals.length > 0 ? (
+        <div className="space-y-2 rounded-md border border-border bg-surface-2 px-4 py-3 text-sm text-text-dim">
+          <p className="text-text">
+            Picked profile: <span className="font-mono">{ecuProfile.name}</span> (
+            {String(ecuProfile.signals.signals.length)} signals).
+          </p>
+          <p>
+            Download <span className="font-mono">signals.json</span> and upload it via Studio
+            on the dash so the ECU mapping ends up in SPIFFS. Until Phase 1b lands the flasher
+            doesn&apos;t write it for you.
+          </p>
+          <button
+            type="button"
+            onClick={() => downloadProfileJson(ecuProfile)}
+            className={`${SECONDARY_CTA_CLASSES} py-2 text-sm font-medium`}
+          >
+            Download signals.json for {ecuProfile.name}
+          </button>
+        </div>
+      ) : null}
 
       <div className="flex justify-center">
         <button

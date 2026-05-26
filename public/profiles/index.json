@@ -1,0 +1,26 @@
+[
+  {
+    "slug": "maxxecu",
+    "name": "MaxxECU MTune",
+    "vendor": "MaxxECU",
+    "canSpeedKbps": 500,
+    "signalCount": 18,
+    "description": "MaxxECU MTune baseline broadcast at 0x370-0x375. Verify frame IDs and byte positions against your MTune CAN output config before relying on this in anger."
+  },
+  {
+    "slug": "obd2-mode01",
+    "name": "OBD-II (Mode 01, polled)",
+    "vendor": "Generic",
+    "canSpeedKbps": 500,
+    "signalCount": 6,
+    "description": "Minimal OBD-II Mode 01 profile — RPM, speed, throttle, coolant/IAT temps, battery voltage. Request/response polling on 0x7DF/0x7E8. Works on most production ECUs that expose OBD-II."
+  },
+  {
+    "slug": "blank",
+    "name": "Skip — push my own profile via Studio",
+    "vendor": "—",
+    "canSpeedKbps": 500,
+    "signalCount": 0,
+    "description": "Empty signals.json — no signals decoded out of the box. Pick this if your ECU isn't in the catalog yet; configure signals in Studio after the dash boots."
+  }
+]

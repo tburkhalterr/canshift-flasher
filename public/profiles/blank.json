@@ -1,0 +1,7 @@
+{
+  "_comment": "Empty signals.json — for users who'll push their own profile via Studio post-flash. Pick this when your ECU isn't in the catalog yet.",
+  "version": "1.0.0",
+  "protocol": "custom_v1.0",
+  "canSpeedKbps": 500,
+  "signals": []
+}
