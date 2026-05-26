@@ -5,6 +5,8 @@ import { formatBytes } from '../../lib/format'
 import { LogStream } from '../LogStream'
 import { ProgressBar } from '../ProgressBar'
 
+import { DashIllustration } from './illustrations/DashIllustration'
+
 interface FlashingViewProps {
   downloadProgress: { loaded: number; total: number | null } | null
   spiffsDownloadProgress: { loaded: number; total: number | null } | null
@@ -44,6 +46,10 @@ export const FlashingView = ({
 
   return (
     <section className="space-y-6">
+      <div className="flex justify-center">
+        <DashIllustration variant="flashing" />
+      </div>
+
       <div className="rounded-md border border-warning/60 bg-surface-2 px-4 py-3 text-sm text-warning">
         Do not unplug the dash while flashing.
       </div>
