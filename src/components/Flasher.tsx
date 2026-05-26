@@ -32,6 +32,7 @@ const renderStateView = (flasher: ReturnType<typeof useFlasher>): ReactElement =
       return (
         <ReadyView
           port={flasher.port}
+          chipInfo={flasher.chipInfo}
           onFlash={flasher.flash}
           onReselect={flasher.reselectPort}
           advanced={flasher.advanced}

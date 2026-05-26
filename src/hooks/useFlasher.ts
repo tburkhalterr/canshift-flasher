@@ -6,7 +6,7 @@ import {
   SUPPORTED_USB_FILTERS,
   type AdvancedBaudRate,
 } from '../constants'
-import { flashFirmware, type FlashProgress } from '../lib/esptool'
+import { flashFirmware, probeChip, type FlashProgress } from '../lib/esptool'
 import { type FirmwareDownloadProgress } from '../lib/firmware'
 import { acquirePayload, resolveActiveRelease, verifyPayload } from '../lib/flash-flow'
 import { type Release } from '../lib/releases'
@@ -206,6 +206,14 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
       const port = await navigator.serial.requestPort({ filters: SUPPORTED_USB_FILTERS })
       portRef.current = port
       setStatus((prev) => ({ ...prev, port, state: 'ready', errorMessage: null }))
+      // Fire-and-forget chip probe — never blocks the transition to ready.
+      // A null result just leaves `chipInfo` unset; the flash itself still
+      // works without it. Silently best-effort.
+      void probeChip(port).then((chip) => {
+        if (chip === null) return
+        // Skip when the user has moved past `ready` (e.g. already flashing).
+        setStatus((prev) => (prev.state === 'ready' ? { ...prev, chipInfo: chip } : prev))
+      })
     } catch (err) {
       // User cancelled the picker — stay in current state, no error UI.
       if (err instanceof DOMException && err.name === 'NotFoundError') return

@@ -254,3 +254,49 @@ export async function flashFirmware(options: FlashRunOptions): Promise<void> {
     }
   }
 }
+
+/**
+ * Best-effort chip-family probe. Runs a single `loader.main` against a fresh
+ * transport, returns the chip name (e.g. `"ESP32-S3"`), then disconnects.
+ * Never throws — returns `null` on any failure so the caller can decide
+ * whether to surface "unknown" or fall through silently.
+ *
+ * Used after port selection to show the detected chip in `ReadyView` so the
+ * user gets immediate confirmation that the dash is actually responding
+ * before kicking off the flash.
+ */
+export const probeChip = async (port: SerialPort): Promise<string | null> => {
+  let transport: Transport | null = null
+  try {
+    const variant = RESET_VARIANT_ORDER[0]
+    if (!variant) return null
+    await runResetSequence(port, variant)
+
+    const terminal: IEspLoaderTerminal = {
+      clean: () => {},
+      write: () => {},
+      writeLine: () => {},
+    }
+
+    const { ESPLoader, Transport: TransportCtor } = await loadEsptool()
+    transport = new TransportCtor(port, /* tracing */ false)
+    const loaderOptions: LoaderOptions = {
+      transport,
+      baudrate: FLASH_BAUD,
+      terminal,
+      enableTracing: false,
+      debugLogging: false,
+    }
+    const loader = new ESPLoader(loaderOptions)
+    const chip = await loader.main()
+    return chip
+  } catch {
+    return null
+  } finally {
+    try {
+      await transport?.disconnect()
+    } catch {
+      /* swallow: best-effort cleanup */
+    }
+  }
+}
