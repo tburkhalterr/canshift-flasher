@@ -8,6 +8,9 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
+    // Exclude Claude tooling worktrees so parallel work doesn't double-count
+    // tests at the project root.
+    exclude: ['node_modules', 'dist', '.claude/**'],
     css: false,
     coverage: {
       provider: 'v8',
