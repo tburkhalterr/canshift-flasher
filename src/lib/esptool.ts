@@ -166,10 +166,15 @@ async function attemptBootloaderEntry(
 const BAUD_FALLBACK_LADDER: readonly number[] = [460_800, 115_200]
 
 /** True when the bootloader-entry error looks baud-related — i.e. lowering
- *  the rate is likely to help. Other errors should fail fast. */
+ *  the rate is likely to help. Other errors (port closed, USB unplug, BOOT
+ *  required, flash chip dead) should fail fast.
+ *
+ *  `No serial data received` is what esptool-js emits when the post-baud-change
+ *  read times out — typically because the chip switched to a rate the cable
+ *  can't sustain. Same root cause as the explicit "noise" wording. */
 const isSerialNoiseError = (err: unknown): boolean => {
   if (!(err instanceof Error)) return false
-  return /Invalid head of packet|Serial data stream stopped|noise or corruption/i.test(
+  return /Invalid head of packet|Serial data stream stopped|No serial data received|noise or corruption/i.test(
     err.message,
   )
 }
@@ -220,6 +225,12 @@ export async function flashFirmware(options: FlashRunOptions): Promise<void> {
     if (currentBaud !== baudLadder[0]) {
       onLog(`Retrying at lower baud rate ${String(currentBaud)}...\n`)
     }
+    // Track noise across the whole pass: a single variant tripping on noise
+    // is enough signal that lowering the rate may help. We were previously
+    // only checking the LAST variant's error and missing mixed traces where
+    // classic="noise" but usb-jtag="no data" — both baud-related, but the
+    // tail-error check would bail out before retry.
+    let passSawNoise = false
 
     for (let i = 0; i < RESET_VARIANT_ORDER.length; i++) {
       const variant = RESET_VARIANT_ORDER[i]
@@ -239,6 +250,7 @@ export async function flashFirmware(options: FlashRunOptions): Promise<void> {
         break baudLadder
       } catch (err) {
         lastError = err
+        if (isSerialNoiseError(err)) passSawNoise = true
         const message = err instanceof Error ? err.message : String(err)
         onLog(`Reset variant ${variant} failed: ${message}\n`)
         // Inner cleanup is now redundant (attemptBootloaderEntry disconnects
@@ -256,9 +268,10 @@ export async function flashFirmware(options: FlashRunOptions): Promise<void> {
       }
     }
 
-    // If the last error doesn't look serial-noise-related, lowering baud
-    // won't help — bail out of the ladder early.
-    if (!isSerialNoiseError(lastError)) break
+    // If no variant tripped on noise during this pass, lowering baud won't
+    // help — the failure is somewhere else (BOOT required, USB unplug, dead
+    // flash chip, etc.).
+    if (!passSawNoise) break
   }
 
   if (!loader || !transport || chip === null) {
