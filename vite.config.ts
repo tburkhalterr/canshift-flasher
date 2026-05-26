@@ -20,7 +20,7 @@ const resolveBuildSha = (): string => {
 const buildSha = resolveBuildSha()
 const buildDate = new Date().toISOString()
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
   define: {
     __BUILD_SHA__: JSON.stringify(buildSha),
@@ -28,11 +28,14 @@ export default defineConfig({
   },
   build: {
     target: 'es2022',
-    sourcemap: true,
+    // Production: emit the .map file for error reporters but omit the
+    // `//# sourceMappingURL=` footer so browsers don't fetch it and we
+    // don't leak source structure publicly. Dev keeps inline-style maps.
+    sourcemap: mode === 'production' ? 'hidden' : true,
     chunkSizeWarningLimit: 250,
   },
   server: {
     port: 5180,
     strictPort: false,
   },
-})
+}))
