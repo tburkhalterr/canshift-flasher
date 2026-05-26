@@ -39,6 +39,14 @@ export async function downloadFirmware(
   url: string,
   onProgress: (p: FirmwareDownloadProgress) => void,
   signal?: AbortSignal,
+  /**
+   * Optional pre-known byte count, usually from the GitHub release asset
+   * metadata (`firmwareAsset.sizeBytes`). Used to render a determinate
+   * progress bar when the response lacks `Content-Length` — e.g. when the
+   * Vercel Edge Function proxy streams the body and the runtime emits
+   * chunked-transfer encoding without setting the header.
+   */
+  expectedSize?: number | null,
 ): Promise<FirmwareBinary> {
   const requestInit: RequestInit = { cache: 'no-store' }
   if (signal) requestInit.signal = signal
@@ -54,7 +62,13 @@ export async function downloadFirmware(
   }
 
   const contentLengthHeader = response.headers.get('content-length')
-  const total = contentLengthHeader ? Number.parseInt(contentLengthHeader, 10) : null
+  const headerTotal = contentLengthHeader ? Number.parseInt(contentLengthHeader, 10) : null
+  const total =
+    headerTotal !== null && Number.isFinite(headerTotal)
+      ? headerTotal
+      : expectedSize !== undefined && expectedSize !== null && expectedSize > 0
+        ? expectedSize
+        : null
 
   // Reject before allocating any buffers if the server announces a body
   // larger than the cap. A hostile mirror could lie in Content-Length but
@@ -145,6 +159,7 @@ export async function downloadFirmwareBundle(
       onProgress({ firmware: firmwareProgress, spiffs: spiffsProgress })
     },
     signal,
+    fwAsset.sizeBytes,
   )
 
   let spiffs: FirmwareBinary | null = null
@@ -156,6 +171,7 @@ export async function downloadFirmwareBundle(
         onProgress({ firmware: firmwareProgress, spiffs: spiffsProgress })
       },
       signal,
+      spiffsAsset.sizeBytes,
     )
   }
 
