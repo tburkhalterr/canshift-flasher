@@ -10,7 +10,7 @@ import {
   type Release,
 } from './releases'
 
-const LS_CACHE_KEY = 'canshift-flasher.releases.v5'
+const LS_CACHE_KEY = 'canshift-flasher.releases.v6'
 
 const FIRMWARE_ASSET_NAME = 'canshift-firmware-v0.10.0-crowpanel_28-merged.bin'
 const SPIFFS_ASSET_NAME = 'canshift-spiffs-v0.10.0-crowpanel_28.bin'
@@ -485,7 +485,11 @@ describe('asset URL allowlist (SEC-002)', () => {
     expect(release.firmwareAsset).toBeNull()
   })
 
-  it('filters out assets whose browser_download_url is off the allowlist', async () => {
+  it('does not gate on browser_download_url — github.com is allowlisted', async () => {
+    // `browser_download_url` is github.com (not directly fetched in the
+    // proxied flow). We only validate `asset.url` (the api.github.com URL
+    // that actually goes through the proxy). github.com is allowlisted for
+    // the legacy `${url}.sha256` fallback path.
     fetchMock.mockResolvedValueOnce(
       jsonResponse([
         {
@@ -498,7 +502,8 @@ describe('asset URL allowlist (SEC-002)', () => {
             {
               name: FIRMWARE_ASSET_NAME,
               url: FIRMWARE_API_URL,
-              browser_download_url: 'https://evil.example/forged.bin',
+              browser_download_url:
+                'https://github.com/x/y/releases/download/v0.10.0/firmware.bin',
               size: 1_572_864,
             },
           ],
@@ -507,6 +512,6 @@ describe('asset URL allowlist (SEC-002)', () => {
     )
 
     const release = await fetchLatestRelease()
-    expect(release.firmwareAsset).toBeNull()
+    expect(release.firmwareAsset).not.toBeNull()
   })
 })

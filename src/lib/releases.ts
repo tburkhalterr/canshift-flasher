@@ -36,6 +36,10 @@ const FIRMWARE_PROXY_BASE = '/api/firmware-proxy'
  */
 const ALLOWED_ASSET_HOSTS = new Set<string>([
   'api.github.com',
+  // `github.com` is where `browser_download_url` points (template for the
+  // legacy `${url}.sha256` sidecar fallback when a release doesn't publish a
+  // separate sha256 asset). Same trust boundary as `api.github.com`.
+  'github.com',
   'objects.githubusercontent.com',
   'release-assets.githubusercontent.com',
   'canshift.tmbk.ch',
@@ -193,12 +197,13 @@ function isAsset(v: unknown): v is GitHubAsset {
   ) {
     return false
   }
-  // SEC-002: drop any asset whose GitHub-supplied URLs fall outside the
-  // host allowlist. The `browser_download_url` feeds the legacy
-  // `${url}.sha256` sidecar fetch, so it must be validated too.
-  if (!isAllowedAssetUrl(a.url) || !isAllowedAssetUrl(a.browser_download_url)) {
-    return false
-  }
+  // SEC-002: drop any asset whose GitHub-supplied API URL falls outside the
+  // host allowlist. `browser_download_url` is intentionally NOT validated
+  // here — it always points at github.com (which we don't fetch directly in
+  // the proxied flow) and is only used as a string template for the legacy
+  // `${url}.sha256` fallback URL, which itself goes through allowlist checks
+  // wherever it's actually fetched.
+  if (!isAllowedAssetUrl(a.url)) return false
   return true
 }
 
@@ -280,7 +285,10 @@ let cachedFullPromise: Promise<Release[]> | null = null
 // `v5` invalidates any caches written before SEC-001/SEC-002 hardening —
 // entries persisted under earlier keys were never validated against the
 // asset-host allowlist, so we drop them unconditionally on first load.
-const LS_CACHE_KEY = 'canshift-flasher.releases.v5'
+// `v6` invalidates `v5` caches written before `github.com` was added to the
+// allowlist — those entries had their assets filtered out by the over-strict
+// `isAsset` URL check, leaving `firmwareAsset: null`.
+const LS_CACHE_KEY = 'canshift-flasher.releases.v6'
 /** 10 minutes — short enough that a release ships quickly, long enough to
  *  shield casual reloads from the 60 req/h anon rate limit. */
 const LS_CACHE_TTL_MS = 10 * 60 * 1000
