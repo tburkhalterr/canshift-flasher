@@ -25,6 +25,8 @@ const renderStateView = (flasher: ReturnType<typeof useFlasher>): ReactElement =
           onConnect={flasher.selectPort}
           errorMessage={flasher.errorMessage}
           release={flasher.release}
+          advanced={flasher.advanced}
+          onAdvancedChange={flasher.setAdvanced}
         />
       )
     case 'ready':

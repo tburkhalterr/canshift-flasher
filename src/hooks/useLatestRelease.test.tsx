@@ -12,6 +12,7 @@ const makeRelease = (overrides: Partial<Release> = {}): Release => ({
   tag: 'v1.2.3',
   publishedAt: '2026-01-01T00:00:00Z',
   notes: 'test notes',
+  prerelease: false,
   firmwareAsset: null,
   spiffsAsset: null,
   htmlUrl: 'https://example.test/release',

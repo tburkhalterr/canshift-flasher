@@ -1,8 +1,11 @@
 // src/components/flasher/IdleView.tsx
-import type { ReactElement } from 'react'
+import { useMemo, type ReactElement } from 'react'
 
-import type { Release } from '../../lib/releases'
+import type { AdvancedOptions } from '../../hooks/useFlasher'
+import { useReleaseChannel } from '../../hooks/useReleaseChannel'
+import { readDefaultChannel, type Release } from '../../lib/releases'
 
+import { ChannelPicker } from './ChannelPicker'
 import { ErrorBanner } from './ErrorBanner'
 import { DashIllustration } from './illustrations/DashIllustration'
 import { ReleaseSummary } from './ReleaseSummary'
@@ -12,9 +15,33 @@ interface IdleViewProps {
   onConnect: () => void
   errorMessage: string | null
   release: Release | null
+  advanced: AdvancedOptions
+  onAdvancedChange: (opts: AdvancedOptions) => void
 }
 
-export const IdleView = ({ onConnect, errorMessage, release }: IdleViewProps): ReactElement => {
+export const IdleView = ({
+  onConnect,
+  errorMessage,
+  release,
+  advanced,
+  onAdvancedChange,
+}: IdleViewProps): ReactElement => {
+  const initialChannel = useMemo(() => readDefaultChannel(), [])
+  const { channel, setChannel, releases, loading, error } = useReleaseChannel(initialChannel)
+
+  const selectedTag = advanced.versionOverride ?? ''
+
+  const handleChannelChange = (next: typeof channel): void => {
+    setChannel(next)
+    // Switching channels invalidates any tag override — the previous tag is
+    // probably not in the new list. Drop back to "latest of new channel".
+    onAdvancedChange({ ...advanced, versionOverride: null })
+  }
+
+  const handleVersionChange = (tag: string): void => {
+    onAdvancedChange({ ...advanced, versionOverride: tag === '' ? null : tag })
+  }
+
   return (
     <section className="space-y-4">
       <div className="flex justify-center">
@@ -28,6 +55,16 @@ export const IdleView = ({ onConnect, errorMessage, release }: IdleViewProps): R
           update.
         </p>
       </div>
+
+      <ChannelPicker
+        channel={channel}
+        onChannelChange={handleChannelChange}
+        releases={releases}
+        selectedTag={selectedTag}
+        onVersionChange={handleVersionChange}
+        loading={loading}
+        error={error}
+      />
 
       {release ? (
         <ReleaseSummary release={release} />
