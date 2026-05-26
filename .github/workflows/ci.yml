@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Manual trigger from the Actions tab — escape hatch when the auto-triggers
+  # don't fire (we hit a case where CI silently skipped a PR + its main-merge,
+  # see issue #79). Lets the maintainer force a green/red signal on demand.
+  workflow_dispatch:
 
 jobs:
   build:
