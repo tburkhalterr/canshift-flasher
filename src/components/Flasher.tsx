@@ -35,6 +35,8 @@ const renderStateView = (
           localFirmware={flasher.localFirmware}
           onLocalFirmwareChange={flasher.setLocalFirmware}
           channelState={channelState}
+          ecuProfile={flasher.ecuProfile}
+          onEcuProfileChange={flasher.setEcuProfile}
         />
       )
     case 'ready':
@@ -71,6 +73,7 @@ const renderStateView = (
           port={flasher.port}
           release={flasher.release}
           logTruncated={flasher.logTruncated}
+          ecuProfile={flasher.ecuProfile}
         />
       )
     case 'failed':

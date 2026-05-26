@@ -10,6 +10,7 @@ import { flashFirmware, probeChip, type FlashProgress } from '../lib/esptool'
 import { type FirmwareDownloadProgress } from '../lib/firmware'
 import { acquirePayload, resolveActiveRelease, verifyPayload } from '../lib/flash-flow'
 import { type LocalFirmware } from '../lib/local-firmware'
+import { type SelectedEcuProfile } from '../lib/profiles/catalog'
 import { type Release } from '../lib/releases'
 import { isSimEnabled, simFlash, simSelectPort } from '../lib/sim'
 import { classifyError, sendTelemetry } from '../lib/telemetry'
@@ -107,6 +108,12 @@ export interface FlasherStatus {
   advanced: AdvancedOptions
   /** User-supplied firmware that bypasses the GitHub release fetch. */
   localFirmware: LocalFirmware | null
+  /**
+   * The ECU profile the user picked in `EcuProfilePicker`. Null until the
+   * picker resolves a selection. Phase 1a: this is only used by SuccessView
+   * to offer a JSON download — SPIFFS injection is deferred to Phase 1b.
+   */
+  ecuProfile: SelectedEcuProfile | null
 }
 
 const INITIAL_STATUS: FlasherStatus = {
@@ -122,6 +129,7 @@ const INITIAL_STATUS: FlasherStatus = {
   release: null,
   advanced: DEFAULT_ADVANCED_OPTIONS,
   localFirmware: null,
+  ecuProfile: null,
 }
 
 export interface FlasherActions {
@@ -132,6 +140,7 @@ export interface FlasherActions {
   cancel: () => void
   setAdvanced: (opts: AdvancedOptions) => void
   setLocalFirmware: (firmware: LocalFirmware | null) => void
+  setEcuProfile: (profile: SelectedEcuProfile | null) => void
 }
 
 export const useFlasher = (): FlasherStatus & FlasherActions => {
@@ -244,6 +253,7 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
       release: prev.release,
       advanced: prev.advanced,
       localFirmware: prev.localFirmware,
+      ecuProfile: prev.ecuProfile,
     }))
   }, [disconnectGuard])
 
@@ -255,6 +265,10 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
   const setLocalFirmware = useCallback((firmware: LocalFirmware | null) => {
     localFirmwareRef.current = firmware
     setStatus((prev) => ({ ...prev, localFirmware: firmware }))
+  }, [])
+
+  const setEcuProfile = useCallback((profile: SelectedEcuProfile | null) => {
+    setStatus((prev) => ({ ...prev, ecuProfile: profile }))
   }, [])
 
   const reselectPort = useCallback(async () => {
@@ -430,6 +444,7 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
           ...INITIAL_STATUS,
           release: prev.release,
           advanced: prev.advanced,
+          ecuProfile: prev.ecuProfile,
         }))
         void sendTelemetry({
           outcome: 'cancelled',
@@ -496,5 +511,6 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
     cancel,
     setAdvanced,
     setLocalFirmware,
+    setEcuProfile,
   }
 }
