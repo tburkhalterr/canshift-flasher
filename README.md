@@ -306,6 +306,13 @@ The CSP `connect-src` directive in `nginx.conf` allows `'self'` plus
 different origin, add that origin to `connect-src` or the fetch will be
 blocked.
 
+`vercel.json` and `nginx.conf` are intentional duplicates — both serve the
+same six security headers (CSP, HSTS, X-Content-Type-Options, X-Frame-Options,
+Referrer-Policy, Permissions-Policy), one for the Vercel-hosted deploy at
+`canshift.tmbk.ch`, the other for the self-host migration. Both must stay in
+sync: if you extend `connect-src` for `VITE_TELEMETRY_URL` or any new origin,
+update both files.
+
 The default Traefik network is named `traefik-public`; rename in
 `docker-compose.yml` to match your swarm (Dokploy sometimes uses
 `dokploy-network`).
