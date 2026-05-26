@@ -24,21 +24,24 @@ export interface LogReportInput {
   portInfo: string | null
   userAgent: string
   timestamp: Date
+  /** Resolved firmware version (e.g. "1.2.3") — included when known. */
+  firmwareVersion?: string | null
 }
 
 /** Build a downloadable plain-text support report from the flash session. */
 export function buildLogBlob(input: LogReportInput): Blob {
-  const header = [
+  const lines = [
     'CANShift Flasher log',
     `Timestamp: ${input.timestamp.toISOString()}`,
     `User-Agent: ${input.userAgent}`,
     `Chip: ${input.chipInfo ?? 'unknown'}`,
     `Port: ${input.portInfo ?? 'unknown'}`,
-    '',
-    '---',
-    input.log,
-  ].join('\n')
-  return new Blob([header], { type: 'text/plain;charset=utf-8' })
+  ]
+  if (input.firmwareVersion) {
+    lines.push(`Firmware version: v${input.firmwareVersion}`)
+  }
+  lines.push('', '---', input.log)
+  return new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' })
 }
 
 /** Build a filesystem-safe filename derived from an ISO timestamp. */

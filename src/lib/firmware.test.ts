@@ -5,6 +5,8 @@ import { FIRMWARE_BINARY_MAX_BYTES } from '../constants'
 
 import { downloadFirmware, type FirmwareDownloadProgress } from './firmware'
 
+const FAKE_URL = 'https://example.test/firmware.bin'
+
 interface MockResponseInit {
   ok?: boolean
   status?: number
@@ -64,7 +66,7 @@ describe('downloadFirmware', () => {
     )
 
     const progress: FirmwareDownloadProgress[] = []
-    const result = await downloadFirmware((p) => progress.push(p))
+    const result = await downloadFirmware(FAKE_URL, (p) => progress.push(p))
 
     expect(result.size).toBe(payload.byteLength)
     expect(Array.from(result.bytes)).toEqual(Array.from(payload))
@@ -78,13 +80,13 @@ describe('downloadFirmware', () => {
       makeResponse({ ok: false, status: 404, statusText: 'Not Found' }),
     )
 
-    await expect(downloadFirmware(() => undefined)).rejects.toThrow(/HTTP 404 Not Found/)
+    await expect(downloadFirmware(FAKE_URL, () => undefined)).rejects.toThrow(/HTTP 404 Not Found/)
   })
 
   it('throws when the response has no body', async () => {
     fetchMock.mockResolvedValueOnce(makeResponse({ contentLength: '10', body: null }))
 
-    await expect(downloadFirmware(() => undefined)).rejects.toThrow(/empty response body/)
+    await expect(downloadFirmware(FAKE_URL, () => undefined)).rejects.toThrow(/empty response body/)
   })
 
   it('rejects when Content-Length exceeds the cap', async () => {
@@ -93,7 +95,7 @@ describe('downloadFirmware', () => {
       makeResponse({ contentLength: tooBig, body: streamFromChunks([new Uint8Array(1)]) }),
     )
 
-    await expect(downloadFirmware(() => undefined)).rejects.toThrow(/announced size/)
+    await expect(downloadFirmware(FAKE_URL, () => undefined)).rejects.toThrow(/announced size/)
   })
 
   it('rejects mid-stream when streamed bytes exceed the cap', async () => {
@@ -105,7 +107,7 @@ describe('downloadFirmware', () => {
       makeResponse({ contentLength: null, body: streamFromChunks([chunkA, chunkB]) }),
     )
 
-    await expect(downloadFirmware(() => undefined)).rejects.toThrow(/streamed/)
+    await expect(downloadFirmware(FAKE_URL, () => undefined)).rejects.toThrow(/streamed/)
   })
 
   it('aborts when the supplied AbortSignal is already aborted', async () => {
@@ -120,7 +122,7 @@ describe('downloadFirmware', () => {
     })
 
     await expect(
-      downloadFirmware(() => undefined, controller.signal),
+      downloadFirmware(FAKE_URL, () => undefined, controller.signal),
     ).rejects.toThrow(/Aborted/)
   })
 
@@ -131,7 +133,7 @@ describe('downloadFirmware', () => {
     )
 
     const onProgress = vi.fn<(p: FirmwareDownloadProgress) => void>()
-    await downloadFirmware(onProgress)
+    await downloadFirmware(FAKE_URL, onProgress)
 
     expect(onProgress).toHaveBeenCalledTimes(3)
     expect(onProgress).toHaveBeenNthCalledWith(1, { loaded: 2, total: 10 })

@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SUPPORTED_USB_FILTERS } from '../constants'
 import * as esptool from '../lib/esptool'
 import * as firmware from '../lib/firmware'
+import * as integrity from '../lib/integrity'
+import * as releases from '../lib/releases'
 
 import { useFlasher } from './useFlasher'
 
@@ -52,6 +54,15 @@ describe('useFlasher state machine', () => {
   beforeEach(() => {
     downloadSpy = vi.spyOn(firmware, 'downloadFirmware')
     flashSpy = vi.spyOn(esptool, 'flashFirmware')
+    // Bypass the SHA-256 gate and the GitHub Releases lookup so tests can
+    // focus on the state-machine wiring. Real integrity behaviour is covered
+    // by lib/integrity tests; real release-fetch behaviour by lib/releases.
+    vi.spyOn(integrity, 'verifyFirmwareSha256').mockResolvedValue(
+      '0000000000000000000000000000000000000000000000000000000000000000',
+    )
+    vi.spyOn(releases, 'fetchLatestRelease').mockRejectedValue(
+      new Error('test: release lookup disabled'),
+    )
   })
 
   afterEach(() => {

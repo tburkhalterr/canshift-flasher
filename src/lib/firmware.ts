@@ -1,5 +1,7 @@
 // src/lib/firmware.ts
-import { FIRMWARE_BINARY_MAX_BYTES, FIRMWARE_URL } from '../constants'
+import { FIRMWARE_BINARY_MAX_BYTES } from '../constants'
+
+import type { Release } from './releases'
 
 export interface FirmwareDownloadProgress {
   loaded: number
@@ -12,23 +14,24 @@ export interface FirmwareBinary {
 }
 
 /**
- * Stream-download the firmware binary from FIRMWARE_URL, surfacing byte
- * progress so the UI can render a determinate bar when Content-Length is
- * present (and an indeterminate one otherwise).
+ * Stream-download a firmware binary from `url`, surfacing byte progress so
+ * the UI can render a determinate bar when Content-Length is present (and
+ * an indeterminate one otherwise).
  *
- * TODO #1081 v2: HMAC-verify the payload before handing it to esptool.
- * The firmware itself HMAC-verifies any OTA payload at install time, but
- * the USB flash path writes raw bytes to flash and bypasses that gate.
- * For v1 we accept the residual risk (user is on a trusted local USB link).
+ * Hardening: caller MUST verify the downloaded bytes against a published
+ * SHA-256 manifest before handing them to esptool. See `verifyFirmwareSha256`
+ * in `./integrity.ts` — the HMAC pre-flash gate tracked in
+ * tburkhalterr/CANShift#1081 is a separate, additional hardening item.
  */
 export async function downloadFirmware(
+  url: string,
   onProgress: (p: FirmwareDownloadProgress) => void,
   signal?: AbortSignal,
 ): Promise<FirmwareBinary> {
   const requestInit: RequestInit = { cache: 'no-store' }
   if (signal) requestInit.signal = signal
 
-  const response = await fetch(FIRMWARE_URL, requestInit)
+  const response = await fetch(url, requestInit)
   if (!response.ok) {
     throw new Error(`Firmware download failed: HTTP ${response.status} ${response.statusText}`)
   }
@@ -82,4 +85,70 @@ function concatChunks(chunks: readonly Uint8Array[], total: number): Uint8Array 
     offset += chunk.byteLength
   }
   return out
+}
+
+export interface FirmwareBundleProgress {
+  firmware: FirmwareDownloadProgress | null
+  spiffs: FirmwareDownloadProgress | null
+}
+
+export interface FirmwareBundle {
+  firmware: FirmwareBinary
+  /** Sibling SHA-256 manifest URL for the firmware binary. */
+  firmwareManifestUrl: string
+  /** SPIFFS image — present only when the release ships one. */
+  spiffs: FirmwareBinary | null
+  spiffsManifestUrl: string | null
+}
+
+/**
+ * Download both the merged firmware image and the (optional) SPIFFS partition
+ * image sequentially. Reports progress for each asset independently so the UI
+ * can render two bars during the download phase. SPIFFS is optional — when
+ * `release.spiffsAsset` is null the function skips it without complaint.
+ *
+ * Both buffers are caller-verified via `verifyFirmwareSha256` against the
+ * sibling `.sha256` URLs surfaced on the asset.
+ */
+export async function downloadFirmwareBundle(
+  release: Release,
+  onProgress: (p: FirmwareBundleProgress) => void,
+  signal?: AbortSignal,
+): Promise<FirmwareBundle> {
+  if (!release.firmwareAsset) {
+    throw new Error('Release is missing a firmware asset')
+  }
+  const fwAsset = release.firmwareAsset
+  const spiffsAsset = release.spiffsAsset
+
+  let firmwareProgress: FirmwareDownloadProgress | null = null
+  let spiffsProgress: FirmwareDownloadProgress | null = null
+
+  const firmware = await downloadFirmware(
+    fwAsset.url,
+    (p) => {
+      firmwareProgress = p
+      onProgress({ firmware: firmwareProgress, spiffs: spiffsProgress })
+    },
+    signal,
+  )
+
+  let spiffs: FirmwareBinary | null = null
+  if (spiffsAsset) {
+    spiffs = await downloadFirmware(
+      spiffsAsset.url,
+      (p) => {
+        spiffsProgress = p
+        onProgress({ firmware: firmwareProgress, spiffs: spiffsProgress })
+      },
+      signal,
+    )
+  }
+
+  return {
+    firmware,
+    firmwareManifestUrl: fwAsset.sha256Url,
+    spiffs,
+    spiffsManifestUrl: spiffsAsset?.sha256Url ?? null,
+  }
 }
