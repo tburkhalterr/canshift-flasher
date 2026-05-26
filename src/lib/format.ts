@@ -44,6 +44,15 @@ export function buildLogBlob(input: LogReportInput): Blob {
   return new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' })
 }
 
+export function formatPublishedDate(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  const yyyy = d.getUTCFullYear().toString()
+  const mm = (d.getUTCMonth() + 1).toString().padStart(2, '0')
+  const dd = d.getUTCDate().toString().padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
 /** Build a filesystem-safe filename derived from an ISO timestamp. */
 export function buildLogFilename(timestamp: Date): string {
   const pad = (n: number): string => n.toString().padStart(2, '0')

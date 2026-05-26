@@ -8,6 +8,7 @@ import {
   buildLogFilename,
   formatBytes,
   formatPortInfo,
+  formatPublishedDate,
 } from '../lib/format'
 import type { Release } from '../lib/releases'
 import { isSimEnabled } from '../lib/sim'
@@ -164,15 +165,6 @@ interface IdleViewProps {
   onConnect: () => void
   errorMessage: string | null
   release: Release | null
-}
-
-function formatPublishedDate(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return iso
-  const yyyy = d.getUTCFullYear().toString()
-  const mm = (d.getUTCMonth() + 1).toString().padStart(2, '0')
-  const dd = d.getUTCDate().toString().padStart(2, '0')
-  return `${yyyy}-${mm}-${dd}`
 }
 
 function ReleaseSummary({ release }: { release: Release }): ReactElement {
