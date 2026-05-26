@@ -6,14 +6,21 @@ import {
   fetchLatestRelease,
   fetchRecentReleases,
   fetchReleaseByTag,
+  isAllowedAssetUrl,
+  type Release,
 } from './releases'
+
+const LS_CACHE_KEY = 'canshift-flasher.releases.v5'
 
 const FIRMWARE_ASSET_NAME = 'canshift-firmware-v0.10.0-crowpanel_28-merged.bin'
 const SPIFFS_ASSET_NAME = 'canshift-spiffs-v0.10.0-crowpanel_28.bin'
-const FIRMWARE_URL = `https://example.test/${FIRMWARE_ASSET_NAME}`
+// `browser_download_url` is the user-facing CDN URL — production traffic
+// resolves to `objects.githubusercontent.com` after the 302 from github.com,
+// which is on the asset-host allowlist (see `ALLOWED_ASSET_HOSTS`).
+const FIRMWARE_URL = `https://objects.githubusercontent.com/github-production-release-asset/${FIRMWARE_ASSET_NAME}`
 const FIRMWARE_API_URL = 'https://api.github.com/repos/x/y/releases/assets/1'
 const FIRMWARE_SHA_API_URL = 'https://api.github.com/repos/x/y/releases/assets/2'
-const SPIFFS_URL = `https://example.test/${SPIFFS_ASSET_NAME}`
+const SPIFFS_URL = `https://objects.githubusercontent.com/github-production-release-asset/${SPIFFS_ASSET_NAME}`
 const SPIFFS_API_URL = 'https://api.github.com/repos/x/y/releases/assets/3'
 
 interface ReleasePayloadOverrides {
@@ -320,5 +327,186 @@ describe('fetchRecentReleases', () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ wrong: 'shape' }))
 
     await expect(fetchRecentReleases()).rejects.toThrow(/expected an array/i)
+  })
+})
+
+describe('isAllowedAssetUrl', () => {
+  it('accepts every host on the production allowlist', () => {
+    expect(isAllowedAssetUrl('https://api.github.com/repos/x/y/releases/assets/1')).toBe(true)
+    expect(isAllowedAssetUrl('https://objects.githubusercontent.com/foo.bin')).toBe(true)
+    expect(isAllowedAssetUrl('https://release-assets.githubusercontent.com/foo.bin')).toBe(true)
+    expect(isAllowedAssetUrl('https://canshift.tmbk.ch/firmware.bin.sha256')).toBe(true)
+  })
+
+  it('accepts a firmware-proxy URL whose embedded target is allowlisted', () => {
+    const inner = 'https://api.github.com/repos/x/y/releases/assets/1'
+    expect(isAllowedAssetUrl(`/api/firmware-proxy?url=${encodeURIComponent(inner)}`)).toBe(true)
+  })
+
+  it('rejects a firmware-proxy URL whose embedded target is hostile', () => {
+    const inner = 'https://evil.example/firmware.bin'
+    expect(isAllowedAssetUrl(`/api/firmware-proxy?url=${encodeURIComponent(inner)}`)).toBe(false)
+  })
+
+  it('rejects http URLs even on allowlisted hosts', () => {
+    expect(isAllowedAssetUrl('http://api.github.com/repos/x/y/releases/assets/1')).toBe(false)
+  })
+
+  it('rejects hosts that are not on the allowlist', () => {
+    expect(isAllowedAssetUrl('https://evil.example/firmware.bin')).toBe(false)
+    expect(isAllowedAssetUrl('https://example.test/firmware.bin')).toBe(false)
+  })
+
+  it('rejects malformed URLs', () => {
+    expect(isAllowedAssetUrl('not-a-url')).toBe(false)
+    expect(isAllowedAssetUrl('')).toBe(false)
+  })
+
+  it('rejects a firmware-proxy URL with no `url` query parameter', () => {
+    expect(isAllowedAssetUrl('/api/firmware-proxy')).toBe(false)
+    expect(isAllowedAssetUrl('/api/firmware-proxy?foo=bar')).toBe(false)
+  })
+})
+
+describe('localStorage cache hardening (SEC-001)', () => {
+  const fetchMock = vi.fn<typeof fetch>()
+
+  const makeCachedRelease = (firmwareUrl: string, sha256Url: string): Release => ({
+    version: '0.10.0',
+    tag: 'v0.10.0',
+    publishedAt: '2026-04-01T12:00:00Z',
+    notes: '',
+    prerelease: false,
+    firmwareAsset: {
+      url: firmwareUrl,
+      sizeBytes: 1_572_864,
+      expectedSha256: 'a'.repeat(64),
+      sha256Url,
+    },
+    spiffsAsset: null,
+    htmlUrl: 'https://github.com/x/y/releases/tag/v0.10.0',
+  })
+
+  beforeEach(() => {
+    fetchMock.mockReset()
+    __resetReleaseCacheForTests()
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('drops a cache entry whose firmwareAsset.url falls outside the allowlist', async () => {
+    const hostileProxyUrl = `/api/firmware-proxy?url=${encodeURIComponent('https://evil.example/firmware.bin')}`
+    const cached = makeCachedRelease(
+      hostileProxyUrl,
+      `/api/firmware-proxy?url=${encodeURIComponent('https://api.github.com/repos/x/y/releases/assets/2')}`,
+    )
+    localStorage.setItem(
+      LS_CACHE_KEY,
+      JSON.stringify({ fetchedAt: Date.now(), releases: [cached] }),
+    )
+
+    // Cache must be discarded → the fetch falls through to the network.
+    fetchMock.mockResolvedValueOnce(jsonResponse([makeReleasePayload()]))
+    const release = await fetchLatestRelease()
+    expect(release.firmwareAsset?.url).toContain(encodeURIComponent(FIRMWARE_API_URL))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(localStorage.getItem(LS_CACHE_KEY)).not.toBeNull()
+  })
+
+  it('drops a cache entry whose firmwareAsset.sha256Url falls outside the allowlist', async () => {
+    const cached = makeCachedRelease(
+      `/api/firmware-proxy?url=${encodeURIComponent('https://api.github.com/repos/x/y/releases/assets/1')}`,
+      'https://evil.example/firmware.bin.sha256',
+    )
+    localStorage.setItem(
+      LS_CACHE_KEY,
+      JSON.stringify({ fetchedAt: Date.now(), releases: [cached] }),
+    )
+
+    fetchMock.mockResolvedValueOnce(jsonResponse([makeReleasePayload()]))
+    await fetchLatestRelease()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a cache entry whose URLs are all on the allowlist', async () => {
+    const safeUrl = `/api/firmware-proxy?url=${encodeURIComponent('https://api.github.com/repos/x/y/releases/assets/1')}`
+    const safeShaUrl = `/api/firmware-proxy?url=${encodeURIComponent('https://api.github.com/repos/x/y/releases/assets/2')}`
+    const cached = makeCachedRelease(safeUrl, safeShaUrl)
+    localStorage.setItem(
+      LS_CACHE_KEY,
+      JSON.stringify({ fetchedAt: Date.now(), releases: [cached] }),
+    )
+
+    // Fresh cache hit → no network call.
+    const release = await fetchLatestRelease()
+    expect(release.firmwareAsset?.url).toBe(safeUrl)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('asset URL allowlist (SEC-002)', () => {
+  const fetchMock = vi.fn<typeof fetch>()
+
+  beforeEach(() => {
+    fetchMock.mockReset()
+    __resetReleaseCacheForTests()
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('filters out assets whose GitHub-supplied url is off the allowlist', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([
+        {
+          tag_name: 'v0.10.0',
+          prerelease: false,
+          published_at: '2026-04-01T12:00:00Z',
+          body: null,
+          html_url: 'https://github.com/x/y/releases/tag/v0.10.0',
+          assets: [
+            {
+              name: FIRMWARE_ASSET_NAME,
+              url: 'https://evil.example/forged-asset-url',
+              browser_download_url: FIRMWARE_URL,
+              size: 1_572_864,
+            },
+          ],
+        },
+      ]),
+    )
+
+    const release = await fetchLatestRelease()
+    expect(release.firmwareAsset).toBeNull()
+  })
+
+  it('filters out assets whose browser_download_url is off the allowlist', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([
+        {
+          tag_name: 'v0.10.0',
+          prerelease: false,
+          published_at: '2026-04-01T12:00:00Z',
+          body: null,
+          html_url: 'https://github.com/x/y/releases/tag/v0.10.0',
+          assets: [
+            {
+              name: FIRMWARE_ASSET_NAME,
+              url: FIRMWARE_API_URL,
+              browser_download_url: 'https://evil.example/forged.bin',
+              size: 1_572_864,
+            },
+          ],
+        },
+      ]),
+    )
+
+    const release = await fetchLatestRelease()
+    expect(release.firmwareAsset).toBeNull()
   })
 })

@@ -16,6 +16,61 @@ const FIRMWARE_ASSET_RE = /canshift-firmware-.*-crowpanel_28-merged\.bin$/
 /** Optional SPIFFS image — flashed at SPIFFS_FLASH_OFFSET when present. */
 const SPIFFS_ASSET_RE = /canshift-spiffs-.*-crowpanel_28\.bin$/
 
+/**
+ * GitHub's release-asset CDN does not send CORS headers, so the flasher routes
+ * every binary download through `/api/firmware-proxy?url=…` — a same-origin
+ * endpoint that adds them server-side. See `api/firmware-proxy.ts`.
+ */
+const FIRMWARE_PROXY_BASE = '/api/firmware-proxy'
+
+/**
+ * Hosts that legitimately serve firmware metadata or binaries today.
+ * Mirrors `api/firmware-proxy.ts` ALLOWED_HOSTS plus the legacy
+ * `canshift.tmbk.ch` fallback for the sidecar `.sha256` manifest. Used as
+ * defence-in-depth against:
+ *  - SEC-002: a MITM'd / spoofed `api.github.com` returning attacker-controlled
+ *    asset URLs that would otherwise flow into `acquirePayload`/`verifyPayload`.
+ *  - SEC-001: a hostile `localStorage` cache entry (XSS, shared machine,
+ *    malicious extension) pointing the flasher at attacker-hosted firmware
+ *    plus a matching attacker digest.
+ */
+const ALLOWED_ASSET_HOSTS = new Set<string>([
+  'api.github.com',
+  'objects.githubusercontent.com',
+  'release-assets.githubusercontent.com',
+  'canshift.tmbk.ch',
+])
+
+/**
+ * Returns true when `url` is an https URL pointing at an allowlisted host, or
+ * a `/api/firmware-proxy?url=…` same-origin proxy URL whose embedded `url`
+ * query parameter also passes the same check.
+ */
+export const isAllowedAssetUrl = (url: string): boolean => {
+  if (typeof url !== 'string' || url.length === 0) return false
+  // Same-origin proxy URLs are stored relative (`/api/firmware-proxy?url=…`).
+  // Validate them by extracting and recursing on the embedded target — the
+  // same-origin protocol/host is not part of the trust decision.
+  if (url.startsWith(`${FIRMWARE_PROXY_BASE}?`)) {
+    try {
+      const proxied = new URL(url, 'https://placeholder.invalid')
+      const inner = proxied.searchParams.get('url')
+      if (inner === null) return false
+      return isAllowedAssetUrl(inner)
+    } catch {
+      return false
+    }
+  }
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return false
+  }
+  if (parsed.protocol !== 'https:') return false
+  return ALLOWED_ASSET_HOSTS.has(parsed.hostname)
+}
+
 /** Total budget for the entire fetch — bounds user-visible idle latency. */
 const FETCH_TIMEOUT_MS = 8_000
 
@@ -129,13 +184,22 @@ function isAsset(v: unknown): v is GitHubAsset {
   if (typeof v !== 'object' || v === null) return false
   const a = v as Record<string, unknown>
   if (a.digest !== undefined && a.digest !== null && typeof a.digest !== 'string') return false
-  return (
-    typeof a.name === 'string' &&
-    typeof a.url === 'string' &&
-    typeof a.browser_download_url === 'string' &&
-    typeof a.size === 'number' &&
-    Number.isFinite(a.size)
-  )
+  if (
+    typeof a.name !== 'string' ||
+    typeof a.url !== 'string' ||
+    typeof a.browser_download_url !== 'string' ||
+    typeof a.size !== 'number' ||
+    !Number.isFinite(a.size)
+  ) {
+    return false
+  }
+  // SEC-002: drop any asset whose GitHub-supplied URLs fall outside the
+  // host allowlist. The `browser_download_url` feeds the legacy
+  // `${url}.sha256` sidecar fetch, so it must be validated too.
+  if (!isAllowedAssetUrl(a.url) || !isAllowedAssetUrl(a.browser_download_url)) {
+    return false
+  }
+  return true
 }
 
 const DIGEST_RE = /^sha256:([0-9a-f]{64})$/i
@@ -157,13 +221,6 @@ function isRelease(v: unknown): v is GitHubRelease {
   if (!Array.isArray(r.assets)) return false
   return true
 }
-
-/**
- * GitHub's release-asset CDN does not send CORS headers, so the flasher routes
- * every binary download through `/api/firmware-proxy?url=…` — a same-origin
- * endpoint that adds them server-side. See `api/firmware-proxy.ts`.
- */
-const FIRMWARE_PROXY_BASE = '/api/firmware-proxy'
 
 const throughProxy = (url: string): string =>
   `${FIRMWARE_PROXY_BASE}?url=${encodeURIComponent(url)}`
@@ -220,10 +277,10 @@ let cachedFullPromise: Promise<Release[]> | null = null
  * render the UI. Stale-while-revalidate: a cached entry is returned immediately
  * even past its TTL, and a background refresh updates the cache for next time.
  */
-// `v4` invalidates caches that lack the `expectedSha256` field (added with the
-// `digest`-based verification path). Old cached entries would fall back to the
-// 404ing sidecar URL.
-const LS_CACHE_KEY = 'canshift-flasher.releases.v4'
+// `v5` invalidates any caches written before SEC-001/SEC-002 hardening —
+// entries persisted under earlier keys were never validated against the
+// asset-host allowlist, so we drop them unconditionally on first load.
+const LS_CACHE_KEY = 'canshift-flasher.releases.v5'
 /** 10 minutes — short enough that a release ships quickly, long enough to
  *  shield casual reloads from the 60 req/h anon rate limit. */
 const LS_CACHE_TTL_MS = 10 * 60 * 1000
@@ -231,6 +288,19 @@ const LS_CACHE_TTL_MS = 10 * 60 * 1000
 interface PersistedCache {
   fetchedAt: number
   releases: Release[]
+}
+
+/**
+ * SEC-001: every persisted asset URL must still resolve to an allowlisted
+ * host. A hostile cache entry (XSS, shared machine, malicious extension) is
+ * dropped wholesale rather than partially trusted.
+ */
+const isCachedAssetSafe = (asset: ReleaseAsset | null): boolean => {
+  if (asset === null) return true
+  if (typeof asset !== 'object') return false
+  if (typeof asset.url !== 'string' || !isAllowedAssetUrl(asset.url)) return false
+  if (typeof asset.sha256Url !== 'string' || !isAllowedAssetUrl(asset.sha256Url)) return false
+  return true
 }
 
 const readPersistedCache = (): PersistedCache | null => {
@@ -242,7 +312,20 @@ const readPersistedCache = (): PersistedCache | null => {
     if (typeof parsed !== 'object' || parsed === null) return null
     const obj = parsed as Record<string, unknown>
     if (typeof obj.fetchedAt !== 'number' || !Array.isArray(obj.releases)) return null
-    return { fetchedAt: obj.fetchedAt, releases: obj.releases as Release[] }
+    const releases = obj.releases as Release[]
+    for (const release of releases) {
+      if (!isCachedAssetSafe(release.firmwareAsset) || !isCachedAssetSafe(release.spiffsAsset)) {
+        // Single bad entry poisons the whole cache — drop it and let the
+        // next call refetch from the network.
+        try {
+          localStorage.removeItem(LS_CACHE_KEY)
+        } catch {
+          /* ignore quota / private-mode failures */
+        }
+        return null
+      }
+    }
+    return { fetchedAt: obj.fetchedAt, releases }
   } catch {
     return null
   }
