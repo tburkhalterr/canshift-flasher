@@ -40,7 +40,17 @@ export const DashIllustration = ({
 }: DashIllustrationProps): ReactElement => {
   const tone = VARIANT_TONE[variant]
   const animation = VARIANT_ANIMATION[variant]
-  const wrapperClasses = ['w-48', 'transition-colors', tone, animation, className]
+  // Cap the illustration so it stays a small visual cue rather than dominating
+  // the column. `max-w-[200px] h-auto` matches the SVG viewBox ratio.
+  const wrapperClasses = [
+    'w-40',
+    'max-w-[200px]',
+    'h-auto',
+    'transition-colors',
+    tone,
+    animation,
+    className,
+  ]
     .filter(Boolean)
     .join(' ')
 
