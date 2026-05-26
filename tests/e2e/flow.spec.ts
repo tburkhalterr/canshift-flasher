@@ -50,7 +50,7 @@ test.describe('sim happy-path flow', () => {
 
     // --- Click Flash latest → FlashingView. ---
 
-    await page.getByRole('button', { name: 'Flash latest' }).click()
+    await page.getByRole('button', { name: /^Flash / }).click()
 
     await expect(
       page.getByRole('img', { name: 'ESP32 being flashed' }),
@@ -103,7 +103,7 @@ test.describe('sim happy-path flow', () => {
 
     await page.getByRole('button', { name: 'Connect' }).click()
     await expect(
-      page.getByRole('button', { name: 'Flash latest' }),
+      page.getByRole('button', { name: /^Flash / }),
     ).toBeVisible()
   })
 })
