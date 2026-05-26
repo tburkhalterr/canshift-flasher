@@ -115,3 +115,12 @@ export const VITE_SIM: string | undefined = import.meta.env.VITE_SIM as string |
 export const TELEMETRY_URL: string | undefined = import.meta.env.VITE_TELEMETRY_URL as
   | string
   | undefined
+
+/**
+ * Build provenance — git short SHA + ISO timestamp captured by Vite at
+ * build time (see `vite.config.ts`, `__BUILD_SHA__` / `__BUILD_DATE__`).
+ * Surfaced in the footer and the telemetry payload so support can map a
+ * user-reported issue to the exact commit they're running.
+ */
+export const BUILD_SHA: string = __BUILD_SHA__
+export const BUILD_DATE: string = __BUILD_DATE__

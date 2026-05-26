@@ -87,6 +87,9 @@ describe('sendTelemetry', () => {
     expect(parsed.verifyMs).toBe(80)
     expect(parsed.flashMs).toBe(3_041)
     expect(parsed.errorClass).toBeNull()
+    // Build provenance is sourced from the `__BUILD_SHA__` define mocked in
+    // `vitest.config.ts` — match that exact mock value here.
+    expect(parsed.buildSha).toBe('testsha1')
     // UA buckets are appended — exact values depend on the test runner's UA.
     expect(typeof parsed.browser).toBe('string')
     expect(typeof parsed.os).toBe('string')

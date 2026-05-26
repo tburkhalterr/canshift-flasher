@@ -3,6 +3,7 @@ import { useMemo, type ReactElement } from 'react'
 
 import { CanshiftLogo } from './components/CanshiftLogo'
 import { Flasher } from './components/Flasher'
+import { BUILD_DATE, BUILD_SHA } from './constants'
 import { isWebSerialSupported } from './lib/browser'
 
 // Single-card layout mirrors canshift-studio's BootScreen treatment:
@@ -12,8 +13,18 @@ import { isWebSerialSupported } from './lib/browser'
 // link below handles the flasher repo.
 const CANSHIFT_REPO_URL = 'https://github.com/tburkhalterr/CANShift'
 
+const FLASHER_REPO_URL = 'https://github.com/tburkhalterr/canshift-flasher'
+
+const formatBuildDate = (iso: string): string => {
+  // Footer only needs the YYYY-MM-DD slice of the ISO timestamp. Guard
+  // against the 'unknown' / malformed fallback path.
+  const match = /^\d{4}-\d{2}-\d{2}/.exec(iso)
+  return match ? match[0] : iso
+}
+
 export function App(): ReactElement {
   const webSerialSupported = useMemo(() => isWebSerialSupported(), [])
+  const buildDate = formatBuildDate(BUILD_DATE)
 
   return (
     <>
@@ -44,7 +55,7 @@ export function App(): ReactElement {
           <p>
             Open source —{' '}
             <a
-              href="https://github.com/tburkhalterr/canshift-flasher"
+              href={FLASHER_REPO_URL}
               target="_blank"
               rel="noreferrer"
               className="underline-offset-4 hover:underline"
@@ -52,6 +63,18 @@ export function App(): ReactElement {
               tburkhalterr/canshift-flasher
             </a>
             .
+          </p>
+          <p className="text-xs text-text-muted">
+            build{' '}
+            <a
+              href={`${FLASHER_REPO_URL}/commit/${BUILD_SHA}`}
+              target="_blank"
+              rel="noreferrer"
+              className="underline-offset-4 hover:underline"
+            >
+              {BUILD_SHA}
+            </a>{' '}
+            · {buildDate}
           </p>
         </footer>
       </main>

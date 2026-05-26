@@ -79,6 +79,13 @@ The `dist/` folder is a static SPA — host it on any HTTPS-capable origin.
 > other than `localhost`. Use Traefik / Caddy / Let's Encrypt to terminate
 > TLS.
 
+The footer of every build shows the git short SHA + ISO build date, e.g.
+`build abc1234 · 2026-05-26`. The SHA is a clickable link to the
+corresponding GitHub commit on `tburkhalterr/canshift-flasher` — when a user
+reports a bug from the deployed site, this is what tells you which commit
+they're running. The same SHA is appended to the telemetry payload as
+`buildSha` (see [Telemetry](#telemetry)).
+
 ## Configuration
 
 | Env var              | Default                                      | Purpose                              |
@@ -153,10 +160,14 @@ silently swallows any error:
   "errorClass":
     "flash-id-ffffff" | "sync-failed" | "sha256-mismatch" |
     "disconnect" | "http" | "cancelled" | "unknown" | null,
+  "buildSha": "abc1234",       // git short SHA of the running build
   "browser": "Chrome" | "Edge" | "Brave" | "Opera" | "Arc" | "Other",
   "os":      "Windows" | "macOS" | "Linux" | "Other"
 }
 ```
+
+`buildSha` is the same short SHA the footer links to — it lets dashboards
+correlate a spike in failures with the exact commit users are running.
 
 The per-phase fields are `null` when the flash failed before reaching that
 phase (e.g. `flashMs` is `null` for an HTTP-404 during download). `durationMs`
