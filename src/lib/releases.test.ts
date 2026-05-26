@@ -101,7 +101,10 @@ describe('fetchLatestRelease', () => {
     expect(firstCall?.[0]).toMatch(/\/releases\?per_page=20$/)
   })
 
-  it('prefers stable over prerelease when both exist', async () => {
+  it('returns the newest release regardless of channel', async () => {
+    // GitHub returns newest-first; surfacing the head matches the IdleView
+    // auto-channel logic so the standalone "Latest" view stays consistent
+    // with whatever channel the picker auto-selects.
     fetchMock.mockResolvedValueOnce(
       jsonResponse([
         makeReleasePayload({ tag_name: 'v0.10.1', prerelease: true }),
@@ -110,7 +113,7 @@ describe('fetchLatestRelease', () => {
     )
 
     const release = await fetchLatestRelease()
-    expect(release.tag).toBe('v0.10.0')
+    expect(release.tag).toBe('v0.10.1')
   })
 
   it('falls back to the first item when no stable release exists', async () => {

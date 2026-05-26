@@ -66,15 +66,25 @@ export interface RecentRelease {
 /** Update channel — drives default version selection. */
 export type Channel = 'stable' | 'beta'
 
-/** Default channel from URL flag, kept for back-compat with `?prerelease=1`. */
-export const readDefaultChannel = (): Channel => {
-  if (typeof window === 'undefined') return 'stable'
+/**
+ * Initial channel preference. `?prerelease=1` is a hard pin — the user asked
+ * for beta and we don't auto-switch back to stable on them even if a stable
+ * release ships later. Without the flag, the hook auto-picks whichever channel
+ * has the newest release.
+ */
+export interface DefaultChannel {
+  channel: Channel
+  /** True when the URL flag forced the choice — disables the auto-switch. */
+  forced: boolean
+}
+
+export const readDefaultChannel = (): DefaultChannel => {
+  if (typeof window === 'undefined') return { channel: 'stable', forced: false }
   try {
-    return new URLSearchParams(window.location.search).get('prerelease') === '1'
-      ? 'beta'
-      : 'stable'
+    const prerelease = new URLSearchParams(window.location.search).get('prerelease') === '1'
+    return prerelease ? { channel: 'beta', forced: true } : { channel: 'stable', forced: false }
   } catch {
-    return 'stable'
+    return { channel: 'stable', forced: false }
   }
 }
 
@@ -273,9 +283,12 @@ const fetchAllReleases = (): Promise<Release[]> => {
 
 export const fetchLatestRelease = async (): Promise<Release> => {
   const releases = await fetchAllReleases()
+  // GitHub returns releases newest-first. Picking releases[0] surfaces the
+  // most recent artifact regardless of channel — IdleView's auto-channel
+  // logic does the same so the two views stay consistent.
   const candidate = INCLUDE_PRERELEASE
     ? (releases.find((r) => r.prerelease) ?? releases[0])
-    : (releases.find((r) => !r.prerelease) ?? releases[0])
+    : releases[0]
   if (!candidate) {
     throw new Error('GitHub API: no releases available')
   }
