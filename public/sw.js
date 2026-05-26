@@ -5,9 +5,14 @@
 //   - `/assets/*` (Vite hashed output) → cache-first, immutable.
 //   - `/firmware/*` and external hosts → network-only (never cached).
 //   - On install: warm the shell cache + skipWaiting.
-//   - On activate: delete old caches + clients.claim.
+//   - On activate: delete old caches, clients.claim, notify open pages to
+//     reload so they pick up a refreshed CSP / asset bundle.
+//
+// `__BUILD_SHA__` is rewritten in-place by `scripts/inject-sw-version.mjs`
+// during `npm run build`. In dev (vite serve) the placeholder stays literal,
+// which still produces stable cache names per dev session.
 
-const CACHE_VERSION = 'v1'
+const CACHE_VERSION = '__BUILD_SHA__'
 const SHELL_CACHE = `canshift-flasher-shell-${CACHE_VERSION}`
 const ASSETS_CACHE = `canshift-flasher-assets-${CACHE_VERSION}`
 const SHELL_URLS = ['/', '/index.html']
@@ -23,16 +28,22 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((key) => key !== SHELL_CACHE && key !== ASSETS_CACHE)
-            .map((key) => caches.delete(key)),
-        ),
+    (async () => {
+      const keys = await caches.keys()
+      await Promise.all(
+        keys
+          .filter((key) => key !== SHELL_CACHE && key !== ASSETS_CACHE)
+          .map((key) => caches.delete(key)),
       )
-      .then(() => self.clients.claim()),
+      await self.clients.claim()
+      // Tell open pages a fresh SW has taken over so they can reload and
+      // pick up the new CSP / hashed assets. The page guards against
+      // reload loops with a per-session sessionStorage flag.
+      const windowClients = await self.clients.matchAll({ type: 'window' })
+      windowClients.forEach((client) => {
+        client.postMessage({ type: 'sw-updated', version: CACHE_VERSION })
+      })
+    })(),
   )
 })
 
