@@ -8,6 +8,29 @@ This is a support project for the main
 [CANShift](https://github.com/tburkhalterr/CANShift) repo — kept separate to
 avoid polluting the monorepo CI and to host independently.
 
+## Table of contents
+
+- [What it does](#what-it-does)
+- [Stack](#stack)
+- [Local development](#local-development)
+- [Build](#build)
+- [Configuration](#configuration)
+  - [Firmware artifact format](#firmware-artifact-format)
+- [Telemetry](#telemetry)
+  - [Per-user opt-out](#per-user-opt-out)
+  - [CSP](#csp)
+- [Reset reliability](#reset-reliability)
+- [Offline support](#offline-support)
+- [Simulation mode (dev-only)](#simulation-mode-dev-only)
+- [Advanced (recovery)](#advanced-recovery)
+- [Supported USB-UART bridges](#supported-usb-uart-bridges)
+- [Self-hosting](#self-hosting)
+- [Deploy](#deploy)
+- [Threat model](#threat-model)
+- [Brand assets](#brand-assets)
+  - [One-command sync](#one-command-sync)
+- [License](#license)
+
 ## What it does
 
 Three use cases, **exactly one flow**:
@@ -21,49 +44,6 @@ Three use cases, **exactly one flow**:
 User flow: plug dash → open canshift.tmbk.ch → "Connect" → "Flash latest" → done.
 
 No version picker. The flasher always pulls the latest published firmware.
-
-## Advanced (recovery)
-
-A collapsed `<details>` block under the "Flash latest" button exposes three
-power-user escape hatches **for support flows only**:
-
-| Control            | Purpose                                                                                   |
-| ------------------ | ----------------------------------------------------------------------------------------- |
-| Full erase         | Sets `eraseAll=true` on `writeFlash` — wipes the entire chip before the new image lands.  |
-| Baud rate          | Drops the esptool stub baud from `921600` → `460800` / `230400` / `115200`. Useful on flaky CH340 dashes with long USB cables. |
-| Version override   | Pins a specific release tag (e.g. `v0.9.1`). Hits `/releases/tags/{tag}` — same SHA-256 + SPIFFS rules apply. Leave blank to use latest. |
-
-The panel is collapsed by default and never persists across reloads — power
-users re-set per session, which keeps the default flow boring and prevents a
-mis-configured default from haunting a non-technical user.
-
-## Simulation mode (dev-only)
-
-For UI work without a CANShift dash plugged in, the flasher ships a fake
-flash pipeline. It bypasses Web Serial entirely, so every state in the state
-machine (`idle → ready → flashing → success | failed`) can be walked from a
-clean checkout.
-
-Two ways to enable it:
-
-```bash
-# Query-string overrides — easiest, no rebuild needed.
-#   ?sim=1        — alias for ?sim=success
-#   ?sim=success  — happy path, lands on success.
-#   ?sim=fail     — lands on failed with a recognisable error.
-http://localhost:5180/?sim=success
-
-# Build-time flag — drop a `.env.sim` containing `VITE_SIM=1` and run:
-npm run dev -- --mode sim
-
-# Or ad-hoc in the shell:
-VITE_SIM=success npm run dev
-```
-
-When sim mode is active, a small `(sim)` badge appears at the top of the
-flasher card so it's obvious the bytes aren't hitting real silicon. The
-production-flash code paths in `lib/esptool.ts` and `lib/firmware.ts` carry
-no conditional logic — sim mode never reaches them.
 
 ## Stack
 
@@ -102,14 +82,12 @@ The `dist/` folder is a static SPA — host it on any HTTPS-capable origin.
 
 | Env var              | Default                                      | Purpose                              |
 | -------------------- | -------------------------------------------- | ------------------------------------ |
-| `VITE_FIRMWARE_URL`  | `https://canshift.tmbk.ch/firmware/latest.bin` | **Deprecated.** Static fallback used only when the GitHub Releases API is unreachable. |
+| `VITE_FIRMWARE_URL`  | `https://canshift.tmbk.ch/firmware/latest.bin` | **Deprecated.** Static fallback (merged image) used only when the GitHub Releases API is unreachable. Must publish a sibling `${VITE_FIRMWARE_URL}.sha256` — the same SHA-256 verification applies. Append `?prerelease=1` to the flasher origin to opt into pre-release builds. |
 | `VITE_TELEMETRY_URL` | _(unset → telemetry disabled)_               | Endpoint that receives anonymous flash-outcome events |
 
-The default flow now pulls release metadata + asset URLs directly from the
-canonical GitHub repository — set the URL by appending `?prerelease=1` to the
-flasher origin to opt into pre-release builds. `VITE_FIRMWARE_URL` is kept
-only for back-compat with deployments that pinned a self-hosted mirror; the
-same SHA-256 verification applies to it.
+The default flow pulls release metadata + asset URLs directly from the
+canonical GitHub repository. `VITE_FIRMWARE_URL` is kept only for back-compat
+with deployments that pinned a self-hosted mirror.
 
 ### Firmware artifact format
 
@@ -129,11 +107,10 @@ format (`<64-hex>  <filename>`) — the flasher hard-fails when the manifest is
 missing or doesn't match.
 
 If you self-host a fallback binary via `VITE_FIRMWARE_URL`, it MUST be the
-merged image and MUST publish `${VITE_FIRMWARE_URL}.sha256` next to it.
-Uploading the app-only `firmware.bin` (intended for `0x10000`) at the same
-URL would brick boot — the ROM bootloader would fail with `flash read err,
-1000` because the bootloader bytes would land at `0x10000` instead of
-`0x1000`.
+merged image. Uploading the app-only `firmware.bin` (intended for `0x10000`)
+at the same URL would brick boot — the ROM bootloader would fail with `flash
+read err, 1000` because the bootloader bytes would land at `0x10000` instead
+of `0x1000`.
 
 Build the merged image with:
 
@@ -189,25 +166,23 @@ If `VITE_TELEMETRY_URL` points to an origin other than `'self'` /
 `canshift.tmbk.ch`, append that origin to the `connect-src` directive in
 `nginx.conf`, otherwise the browser will block the request.
 
-## Threat model
+## Reset reliability
 
-The flasher fetches the firmware from a public CDN and then writes it raw to
-flash. Every downloaded artifact is **SHA-256 verified before flashing** against
-the sibling `.sha256` file published next to the binary in the GitHub release
-(coreutils format). A mismatch, a missing `.sha256` sibling, or a malformed
-manifest hard-fails the flash — there is no opt-out flag.
+Web Serial cannot drive `DTR/RTS` as reliably as Node's `serialport` library
+(which `canshift-studio` uses from its Electron main process). To compensate,
+the flasher automatically retries up to three reset sequences before giving
+up:
 
-The same gate applies to the `VITE_FIRMWARE_URL` fallback path: any deployment
-serving a self-hosted mirror **MUST** publish a sibling `.sha256` file next to
-the binary, or the flasher will refuse to flash.
+1. **classic** — DTR=boot, RTS=reset (canonical CH340/CH9102 wiring).
+2. **inverted** — RTS=boot, DTR=reset (some FTDI/PL2303 boards).
+3. **usb-jtag** — single reset pulse, for ESP32-S3 native USB.
 
-A separate HMAC pre-flash gate (closer to the in-firmware OTA verification) is
-tracked as a future hardening item in
-[tburkhalterr/CANShift#1081](https://github.com/tburkhalterr/CANShift/issues/1081).
+Timings are widened from esptool defaults (120 / 80 ms instead of 100 / 50 ms)
+to give slow CH340 boards on macOS extra latch time on the boot pin.
 
-Security disclosures: see [`public/.well-known/security.txt`](./public/.well-known/security.txt).
-<!-- TODO: confirm contact — currently security@tmbk.ch -->
-
+This covers most macOS CH340 cases hands-off. Stubborn boards still need a
+manual **BOOT-button press**: hold BOOT, tap RESET (or unplug/replug USB
+while holding BOOT), then click **Retry**.
 
 ## Offline support
 
@@ -230,23 +205,48 @@ In practice: the UI loads when you're offline, but the **firmware download
 still needs an internet connection** — the bytes are deliberately fetched
 fresh every time.
 
-## Reset reliability
+## Simulation mode (dev-only)
 
-Web Serial cannot drive `DTR/RTS` as reliably as Node's `serialport` library
-(which `canshift-studio` uses from its Electron main process). To compensate,
-the flasher automatically retries up to three reset sequences before giving
-up:
+For UI work without a CANShift dash plugged in, the flasher ships a fake
+flash pipeline. It bypasses Web Serial entirely, so every state in the state
+machine (`idle → ready → flashing → success | failed`) can be walked from a
+clean checkout.
 
-1. **classic** — DTR=boot, RTS=reset (canonical CH340/CH9102 wiring).
-2. **inverted** — RTS=boot, DTR=reset (some FTDI/PL2303 boards).
-3. **usb-jtag** — single reset pulse, for ESP32-S3 native USB.
+Two ways to enable it:
 
-Timings are widened from esptool defaults (120 / 80 ms instead of 100 / 50 ms)
-to give slow CH340 boards on macOS extra latch time on the boot pin.
+```bash
+# Query-string overrides — easiest, no rebuild needed.
+#   ?sim=1        — alias for ?sim=success
+#   ?sim=success  — happy path, lands on success.
+#   ?sim=fail     — lands on failed with a recognisable error.
+http://localhost:5180/?sim=success
 
-This covers most macOS CH340 cases hands-off. Stubborn boards still need a
-manual **BOOT-button press**: hold BOOT, tap RESET (or unplug/replug USB
-while holding BOOT), then click **Retry**.
+# Build-time flag — drop a `.env.sim` containing `VITE_SIM=1` and run:
+npm run dev -- --mode sim
+
+# Or ad-hoc in the shell:
+VITE_SIM=success npm run dev
+```
+
+When sim mode is active, a small `(sim)` badge appears at the top of the
+flasher card so it's obvious the bytes aren't hitting real silicon. The
+production-flash code paths in `lib/esptool.ts` and `lib/firmware.ts` carry
+no conditional logic — sim mode never reaches them.
+
+## Advanced (recovery)
+
+A collapsed `<details>` block under the "Flash latest" button exposes three
+power-user escape hatches **for support flows only**:
+
+| Control            | Purpose                                                                                   |
+| ------------------ | ----------------------------------------------------------------------------------------- |
+| Full erase         | Sets `eraseAll=true` on `writeFlash` — wipes the entire chip before the new image lands.  |
+| Baud rate          | Drops the esptool stub baud from `921600` → `460800` / `230400` / `115200`. Useful on flaky CH340 dashes with long USB cables. |
+| Version override   | Pins a specific release tag (e.g. `v0.9.1`). Hits `/releases/tags/{tag}` — same SHA-256 + SPIFFS rules apply. Leave blank to use latest. |
+
+The panel is collapsed by default and never persists across reloads — power
+users re-set per session, which keeps the default flow boring and prevents a
+mis-configured default from haunting a non-technical user.
 
 ## Supported USB-UART bridges
 
@@ -258,46 +258,6 @@ CANShift boards (same allowlist as `canshift-studio`):
 | CH340  | 0x1a86 | 0x7523 |
 | CH9102 | 0x1a86 | 0x55d4 |
 | CP210x | 0x10c4 | 0xea60 |
-
-## Brand assets
-
-The flasher mirrors `canshift-studio`'s visual identity so it feels like a
-member of the same product family:
-
-| Asset                                    | Source of truth                                                       |
-| ---------------------------------------- | --------------------------------------------------------------------- |
-| Logo (`public/canshift_studio_logo.png`) | `canshift-studio/assets/CANShift_studio_logo.png`                     |
-| Favicon (`public/favicon.png`)           | `canshift-studio/assets/icon.png` (the Electron app icon)             |
-| Color tokens (`src/styles/tokens.css`)   | `canshift-core/src/design-tokens.ts` (`DARK_TOKENS.colors`)           |
-| Header font (`public/fonts/orbitron-*.woff2`) | [Orbitron](https://fonts.google.com/specimen/Orbitron) (self-hosted from [Fontsource](https://fontsource.org/fonts/orbitron)) |
-
-The flasher intentionally does **not** depend on `canshift-core` or
-`canshift-studio` — values are copied. If Studio's identity moves, re-sync
-the logo PNG, the favicon, and the CSS variables in `src/styles/tokens.css`
-manually.
-
-### One-command sync
-
-```bash
-npm run sync-brand
-```
-
-Runs `scripts/sync-brand-assets.mjs`, which copies the logo and favicon from
-`../canshift-studio/assets/` and regenerates the `:root` block of
-`src/styles/tokens.css` from `../canshift-core/src/design-tokens.ts`
-(`DARK_TOKENS.colors`). Run this after any studio identity update; commit
-the resulting diff. The script bails with a clear message if the sibling
-repos are not checked out next to this one.
-
-The script is **not** wired into CI — sibling repos are not available
-there. It is a maintenance-time tool only; the manual sync paragraph above
-remains the fallback for ad-hoc updates.
-
-## Deploy
-
-This project does not include any deploy automation. The maintainer wires
-their own pipeline (static-hosting any `dist/`). Just upload the `dist/`
-contents to your origin and you are good.
 
 ## Self-hosting
 
@@ -332,6 +292,65 @@ blocked.
 The default Traefik network is named `traefik-public`; rename in
 `docker-compose.yml` to match your swarm (Dokploy sometimes uses
 `dokploy-network`).
+
+## Deploy
+
+This project does not include any deploy automation. The maintainer wires
+their own pipeline (static-hosting any `dist/`). Just upload the `dist/`
+contents to your origin and you are good.
+
+## Threat model
+
+The flasher fetches the firmware from a public CDN and then writes it raw to
+flash. Every downloaded artifact is **SHA-256 verified before flashing** against
+the sibling `.sha256` file published next to the binary in the GitHub release
+(coreutils format). A mismatch, a missing `.sha256` sibling, or a malformed
+manifest hard-fails the flash — there is no opt-out flag.
+
+The same gate applies to the `VITE_FIRMWARE_URL` fallback path: any deployment
+serving a self-hosted mirror **MUST** publish a sibling `.sha256` file next to
+the binary, or the flasher will refuse to flash.
+
+A separate HMAC pre-flash gate (closer to the in-firmware OTA verification) is
+tracked as a future hardening item in
+[tburkhalterr/CANShift#1081](https://github.com/tburkhalterr/CANShift/issues/1081).
+
+Security disclosures: see [`public/.well-known/security.txt`](./public/.well-known/security.txt).
+<!-- TODO: confirm contact — currently security@tmbk.ch -->
+
+## Brand assets
+
+The flasher mirrors `canshift-studio`'s visual identity so it feels like a
+member of the same product family:
+
+| Asset                                    | Source of truth                                                       |
+| ---------------------------------------- | --------------------------------------------------------------------- |
+| Logo (`public/canshift_studio_logo.png`) | `canshift-studio/assets/CANShift_studio_logo.png`                     |
+| Favicon (`public/favicon.png`)           | `canshift-studio/assets/icon.png` (the Electron app icon)             |
+| Color tokens (`src/styles/tokens.css`)   | `canshift-core/src/design-tokens.ts` (`DARK_TOKENS.colors`)           |
+| Header font (`public/fonts/orbitron-*.woff2`) | [Orbitron](https://fonts.google.com/specimen/Orbitron) (self-hosted from [Fontsource](https://fontsource.org/fonts/orbitron)) |
+
+The flasher intentionally does **not** depend on `canshift-core` or
+`canshift-studio` — values are copied. If Studio's identity moves, re-sync
+the logo PNG, the favicon, and the CSS variables in `src/styles/tokens.css`
+manually.
+
+### One-command sync
+
+```bash
+npm run sync-brand
+```
+
+Runs `scripts/sync-brand-assets.mjs`, which copies the logo and favicon from
+`../canshift-studio/assets/` and regenerates the `:root` block of
+`src/styles/tokens.css` from `../canshift-core/src/design-tokens.ts`
+(`DARK_TOKENS.colors`). Run this after any studio identity update; commit
+the resulting diff. The script bails with a clear message if the sibling
+repos are not checked out next to this one.
+
+The script is **not** wired into CI — sibling repos are not available
+there. It is a maintenance-time tool only; the manual sync paragraph above
+remains the fallback for ad-hoc updates.
 
 ## License
 
