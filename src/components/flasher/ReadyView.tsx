@@ -9,6 +9,7 @@ import { PRIMARY_CTA_CLASSES } from './styles'
 
 interface ReadyViewProps {
   port: SerialPort | null
+  chipInfo: string | null
   onFlash: () => void
   onReselect: () => void
   advanced: AdvancedOptions
@@ -17,6 +18,7 @@ interface ReadyViewProps {
 
 export const ReadyView = ({
   port,
+  chipInfo,
   onFlash,
   onReselect,
   advanced,
@@ -28,6 +30,12 @@ export const ReadyView = ({
         Connected:{' '}
         <span className="font-mono text-text">{port ? formatPortInfo(port) : '—'}</span>
       </div>
+
+      {chipInfo ? (
+        <p className="text-sm text-text-dim">
+          Detected: <span className="font-mono text-text">{chipInfo}</span>
+        </p>
+      ) : null}
 
       <button
         type="button"

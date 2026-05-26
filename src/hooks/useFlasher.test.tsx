@@ -124,7 +124,11 @@ describe('useFlasher state machine', () => {
       expect(result.current.state).toBe('failed')
     })
     expect(result.current.errorMessage).toBe('esptool exploded')
-    expect(result.current.log).toContain('Error: esptool exploded')
+    // The log buffer is rAF-coalesced (see useFlasher#appendLog), so wait
+    // for the next frame to flush before asserting on its contents.
+    await waitFor(() => {
+      expect(result.current.log).toContain('Error: esptool exploded')
+    })
   })
 
   it('stays in idle (no error UI) when the user cancels the picker', async () => {

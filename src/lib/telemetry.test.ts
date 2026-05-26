@@ -1,12 +1,10 @@
 // src/lib/telemetry.test.ts
-//
-// Intentionally minimal: `classifyError` is about to be rewritten in issue
-// #51 to use typed `instanceof` checks instead of regex, so deep regex-shape
-// tests would just be thrown away. We cover the opt-out + transport
-// behaviour of `sendTelemetry` plus one smoke test for `classifyError`.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { TelemetryEvent } from './telemetry'
+import { BootloaderEntryError, FlashIdError } from './esptool'
+import { FirmwareDownloadError } from './firmware'
+import { FirmwareIntegrityError } from './integrity'
+import type { TelemetryErrorClass, TelemetryEvent } from './telemetry'
 
 const OPT_OUT_KEY = 'canshift-flasher.telemetry.optout'
 const FAKE_TELEMETRY_URL = 'https://telemetry.example.test/collect'
@@ -31,6 +29,9 @@ const SAMPLE_EVENT: TelemetryEvent = {
   chipFamily: 'ESP32-S3',
   firmwareVersion: '0.10.0',
   durationMs: 4_321,
+  downloadMs: 1_200,
+  verifyMs: 80,
+  flashMs: 3_041,
   errorClass: null,
 }
 
@@ -82,6 +83,9 @@ describe('sendTelemetry', () => {
     expect(parsed.chipFamily).toBe('ESP32-S3')
     expect(parsed.firmwareVersion).toBe('0.10.0')
     expect(parsed.durationMs).toBe(4_321)
+    expect(parsed.downloadMs).toBe(1_200)
+    expect(parsed.verifyMs).toBe(80)
+    expect(parsed.flashMs).toBe(3_041)
     expect(parsed.errorClass).toBeNull()
     // UA buckets are appended — exact values depend on the test runner's UA.
     expect(typeof parsed.browser).toBe('string')
@@ -95,13 +99,73 @@ describe('sendTelemetry', () => {
   })
 })
 
-describe('classifyError (smoke)', () => {
-  // Deep coverage waits for #51 — for now, one happy-path mapping is enough
-  // to lock in the public contract (string in, enum out).
-  it('maps a known error message to its enum bucket', async () => {
-    const { classifyError } = await loadTelemetryWithUrl(undefined)
-    expect(classifyError('Flash ID is ffffff — the chip cannot reach its own flash.')).toBe(
-      'flash-id-ffffff',
-    )
+describe('classifyError', () => {
+  // Each test re-imports the typed error classes together with `./telemetry`
+  // so the `instanceof` checks line up — `sendTelemetry`'s afterEach calls
+  // `vi.resetModules()`, which would otherwise leave the top-level imports
+  // pointing at a stale copy of the class identity.
+  async function loadClassifier(): Promise<{
+    classifyError: (err: unknown) => TelemetryErrorClass
+    FlashIdError: typeof FlashIdError
+    BootloaderEntryError: typeof BootloaderEntryError
+    FirmwareIntegrityError: typeof FirmwareIntegrityError
+    FirmwareDownloadError: typeof FirmwareDownloadError
+  }> {
+    const tmod = await import('./telemetry')
+    const emod = await import('./esptool')
+    const fmod = await import('./firmware')
+    const imod = await import('./integrity')
+    return {
+      classifyError: tmod.classifyError,
+      FlashIdError: emod.FlashIdError,
+      BootloaderEntryError: emod.BootloaderEntryError,
+      FirmwareIntegrityError: imod.FirmwareIntegrityError,
+      FirmwareDownloadError: fmod.FirmwareDownloadError,
+    }
+  }
+
+  it('classifies FlashIdError as flash-id-ffffff', async () => {
+    const { classifyError, FlashIdError: Cls } = await loadClassifier()
+    expect(classifyError(new Cls('Flash ID is ffffff'))).toBe('flash-id-ffffff')
+  })
+
+  it('classifies BootloaderEntryError as sync-failed', async () => {
+    const { classifyError, BootloaderEntryError: Cls } = await loadClassifier()
+    expect(classifyError(new Cls('Could not enter ESP32 bootloader'))).toBe('sync-failed')
+  })
+
+  it('classifies FirmwareIntegrityError as sha256-mismatch', async () => {
+    const { classifyError, FirmwareIntegrityError: Cls } = await loadClassifier()
+    expect(classifyError(new Cls('mismatch', 'boom'))).toBe('sha256-mismatch')
+  })
+
+  it('classifies FirmwareDownloadError as http', async () => {
+    const { classifyError, FirmwareDownloadError: Cls } = await loadClassifier()
+    expect(classifyError(new Cls('HTTP 404 Not Found'))).toBe('http')
+  })
+
+  it('classifies AbortError DOMException as cancelled', async () => {
+    const { classifyError } = await loadClassifier()
+    expect(classifyError(new DOMException('aborted', 'AbortError'))).toBe('cancelled')
+  })
+
+  it('returns unknown for non-Error values', async () => {
+    const { classifyError } = await loadClassifier()
+    expect(classifyError('plain string')).toBe('unknown')
+    expect(classifyError(null)).toBe('unknown')
+    expect(classifyError(undefined)).toBe('unknown')
+  })
+
+  it('falls back to message regex for raw Error and warns', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const { classifyError } = await loadClassifier()
+    expect(classifyError(new Error('Flash ID is ffffff'))).toBe('flash-id-ffffff')
+    expect(warnSpy).toHaveBeenCalled()
+    warnSpy.mockRestore()
+  })
+
+  it('returns unknown for raw Error with no matching message', async () => {
+    const { classifyError } = await loadClassifier()
+    expect(classifyError(new Error('something unexpected'))).toBe('unknown')
   })
 })

@@ -1,12 +1,12 @@
 // src/hooks/useFlasher.ts
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
   DEFAULT_ADVANCED_OPTIONS,
   SUPPORTED_USB_FILTERS,
   type AdvancedBaudRate,
 } from '../constants'
-import { flashFirmware, type FlashProgress } from '../lib/esptool'
+import { flashFirmware, probeChip, type FlashProgress } from '../lib/esptool'
 import { type FirmwareDownloadProgress } from '../lib/firmware'
 import { acquirePayload, resolveActiveRelease, verifyPayload } from '../lib/flash-flow'
 import { type Release } from '../lib/releases'
@@ -35,6 +35,17 @@ const DISCONNECT_DURING_FLASH_MESSAGE =
   'USB connection lost mid-flash — re-plug the dash and click Retry.'
 
 /**
+ * Hard cap on the in-memory log buffer. esptool can emit a few hundred KiB
+ * of progress lines on a verbose stub; without a cap a stuck retry loop
+ * grows the buffer unboundedly and starves React re-renders. 128 KiB is
+ * roughly ~2k lines — plenty for diagnosing a single flash session.
+ */
+export const LOG_BUFFER_CAP_BYTES = 128 * 1024
+
+/** Truncation marker prepended once after the first rotation. */
+const LOG_TRUNCATION_MARKER = '[...truncated]\n'
+
+/**
  * Reset the bits of status that should be cleared each time `flash()` starts:
  * progress trackers, error message, chip info, log. Pure helper to keep the
  * orchestrator readable.
@@ -48,6 +59,7 @@ const initFlashingStatus = (prev: FlasherStatus): FlasherStatus => ({
   spiffsDownloadProgress: null,
   flashProgress: null,
   log: '',
+  logTruncated: false,
 })
 
 /**
@@ -88,6 +100,8 @@ export interface FlasherStatus {
   spiffsDownloadProgress: FirmwareDownloadProgress | null
   flashProgress: FlashProgress | null
   log: string
+  /** True once the in-memory log buffer hit its cap and was rotated. */
+  logTruncated: boolean
   release: Release | null
   advanced: AdvancedOptions
 }
@@ -101,6 +115,7 @@ const INITIAL_STATUS: FlasherStatus = {
   spiffsDownloadProgress: null,
   flashProgress: null,
   log: '',
+  logTruncated: false,
   release: null,
   advanced: DEFAULT_ADVANCED_OPTIONS,
 }
@@ -119,6 +134,9 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
   const [status, setStatus] = useState<FlasherStatus>(INITIAL_STATUS)
   const portRef = useRef<SerialPort | null>(null)
   const logBufferRef = useRef<string>('')
+  const logTruncatedRef = useRef<boolean>(false)
+  const logFlushScheduledRef = useRef<boolean>(false)
+  const logFlushHandleRef = useRef<number | null>(null)
   const downloadAbortRef = useRef<AbortController | null>(null)
   // Mirror of `status.advanced` so `flash()` reads the latest power-user
   // options at call time without being recreated on every toggle.
@@ -126,9 +144,55 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
 
   const disconnectGuard = useDisconnectGuard()
 
-  const appendLog = useCallback((line: string) => {
-    logBufferRef.current += line
-    setStatus((prev) => ({ ...prev, log: logBufferRef.current }))
+  const flushLog = useCallback(() => {
+    logFlushScheduledRef.current = false
+    logFlushHandleRef.current = null
+    setStatus((prev) => ({
+      ...prev,
+      log: logBufferRef.current,
+      logTruncated: logTruncatedRef.current,
+    }))
+  }, [])
+
+  const appendLog = useCallback(
+    (line: string) => {
+      // Cap the buffer: when the next append would exceed the cap, drop the
+      // oldest half and prepend the truncation marker once. Subsequent
+      // rotations keep dropping from the middle without re-adding the marker.
+      const projected = logBufferRef.current.length + line.length
+      if (projected > LOG_BUFFER_CAP_BYTES) {
+        const half = Math.floor(LOG_BUFFER_CAP_BYTES / 2)
+        const kept = logBufferRef.current.slice(-half)
+        if (!logTruncatedRef.current) {
+          logBufferRef.current = LOG_TRUNCATION_MARKER + kept
+          logTruncatedRef.current = true
+        } else {
+          logBufferRef.current = kept
+        }
+      }
+      logBufferRef.current += line
+
+      // Coalesce render updates: one `setStatus` per animation frame at most,
+      // so a chatty esptool stream doesn't trigger a re-render per line.
+      if (logFlushScheduledRef.current) return
+      logFlushScheduledRef.current = true
+      if (typeof requestAnimationFrame === 'function') {
+        logFlushHandleRef.current = requestAnimationFrame(flushLog)
+      } else {
+        // jsdom and Node test envs may omit rAF — fall back to a microtask.
+        queueMicrotask(flushLog)
+      }
+    },
+    [flushLog],
+  )
+
+  // Cancel any pending rAF on unmount so we don't flush into a torn-down hook.
+  useEffect(() => {
+    return () => {
+      if (logFlushHandleRef.current !== null && typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(logFlushHandleRef.current)
+      }
+    }
   }, [])
 
   const selectPort = useCallback(async () => {
@@ -142,6 +206,14 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
       const port = await navigator.serial.requestPort({ filters: SUPPORTED_USB_FILTERS })
       portRef.current = port
       setStatus((prev) => ({ ...prev, port, state: 'ready', errorMessage: null }))
+      // Fire-and-forget chip probe — never blocks the transition to ready.
+      // A null result just leaves `chipInfo` unset; the flash itself still
+      // works without it. Silently best-effort.
+      void probeChip(port).then((chip) => {
+        if (chip === null) return
+        // Skip when the user has moved past `ready` (e.g. already flashing).
+        setStatus((prev) => (prev.state === 'ready' ? { ...prev, chipInfo: chip } : prev))
+      })
     } catch (err) {
       // User cancelled the picker — stay in current state, no error UI.
       if (err instanceof DOMException && err.name === 'NotFoundError') return
@@ -154,6 +226,7 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
     disconnectGuard.detach()
     portRef.current = null
     logBufferRef.current = ''
+    logTruncatedRef.current = false
     // Preserve the resolved release across reset — it was fetched once on
     // mount and re-fetching on every "Flash again" would just hit the rate
     // limit for no UX benefit. Also preserve advanced options so power-users
@@ -183,6 +256,7 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
     }
 
     logBufferRef.current = ''
+    logTruncatedRef.current = false
     setStatus(initFlashingStatus)
 
     if (isSimEnabled()) {
@@ -191,7 +265,25 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
     }
 
     const startedAt = performance.now()
+    let tDownloadDone: number | null = null
+    let tVerifyDone: number | null = null
+    let tFlashDone: number | null = null
     let detectedChip: string | null = null
+
+    const phaseMs = (
+      from: number,
+      to: number | null,
+    ): number | null => (to === null ? null : Math.round(to - from))
+
+    const buildPhaseTimings = (): {
+      downloadMs: number | null
+      verifyMs: number | null
+      flashMs: number | null
+    } => ({
+      downloadMs: phaseMs(startedAt, tDownloadDone),
+      verifyMs: tDownloadDone === null ? null : phaseMs(tDownloadDone, tVerifyDone),
+      flashMs: tVerifyDone === null ? null : phaseMs(tVerifyDone, tFlashDone),
+    })
 
     const abortController = new AbortController()
     downloadAbortRef.current = abortController
@@ -211,6 +303,7 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
         chipFamily: detectedChip,
         firmwareVersion: releaseRef.current?.version ?? null,
         durationMs: Math.round(performance.now() - startedAt),
+        ...buildPhaseTimings(),
         errorClass: 'disconnect',
       })
     })
@@ -233,8 +326,10 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
           }))
         },
       })
+      tDownloadDone = performance.now()
 
       await verifyPayload(payload, appendLog)
+      tVerifyDone = performance.now()
 
       // Once writeFlash is about to start, cancellation is no longer offered —
       // drop the controller so the UI hides the Cancel button.
@@ -262,6 +357,7 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
         baudRate: advanced.baudRate,
         fullErase: advanced.fullErase,
       })
+      tFlashDone = performance.now()
 
       disconnectGuard.detach()
       downloadAbortRef.current = null
@@ -271,6 +367,7 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
         chipFamily: detectedChip,
         firmwareVersion: releaseRef.current?.version ?? null,
         durationMs: Math.round(performance.now() - startedAt),
+        ...buildPhaseTimings(),
         errorClass: null,
       })
     } catch (err) {
@@ -283,6 +380,7 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
       if (err instanceof DOMException && err.name === 'AbortError') {
         portRef.current = null
         logBufferRef.current = ''
+        logTruncatedRef.current = false
         setStatus((prev) => ({
           ...INITIAL_STATUS,
           release: prev.release,
@@ -293,6 +391,7 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
           chipFamily: detectedChip,
           firmwareVersion: releaseRef.current?.version ?? null,
           durationMs: Math.round(performance.now() - startedAt),
+          ...buildPhaseTimings(),
           errorClass: 'cancelled',
         })
         return
@@ -305,7 +404,8 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
         chipFamily: detectedChip,
         firmwareVersion: releaseRef.current?.version ?? null,
         durationMs: Math.round(performance.now() - startedAt),
-        errorClass: classifyError(message),
+        ...buildPhaseTimings(),
+        errorClass: classifyError(err),
       })
     }
   }, [appendLog, disconnectGuard, releaseRef])

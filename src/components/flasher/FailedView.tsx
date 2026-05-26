@@ -19,6 +19,7 @@ interface FailedViewProps {
   chipInfo: string | null
   port: SerialPort | null
   release: Release | null
+  logTruncated: boolean
 }
 
 export const FailedView = ({
@@ -29,6 +30,7 @@ export const FailedView = ({
   chipInfo,
   port,
   release,
+  logTruncated,
 }: FailedViewProps): ReactElement => {
   return (
     <section className="space-y-6">
@@ -54,7 +56,7 @@ export const FailedView = ({
 
       <button
         type="button"
-        onClick={() => downloadLogReport({ log, chipInfo, port, release })}
+        onClick={() => downloadLogReport({ log, chipInfo, port, release, logTruncated })}
         className="text-sm text-text-muted underline-offset-4 hover:underline"
       >
         Download log

@@ -32,6 +32,7 @@ const renderStateView = (flasher: ReturnType<typeof useFlasher>): ReactElement =
       return (
         <ReadyView
           port={flasher.port}
+          chipInfo={flasher.chipInfo}
           onFlash={flasher.flash}
           onReselect={flasher.reselectPort}
           advanced={flasher.advanced}
@@ -57,6 +58,7 @@ const renderStateView = (flasher: ReturnType<typeof useFlasher>): ReactElement =
           chipInfo={flasher.chipInfo}
           port={flasher.port}
           release={flasher.release}
+          logTruncated={flasher.logTruncated}
         />
       )
     case 'failed':
@@ -69,6 +71,7 @@ const renderStateView = (flasher: ReturnType<typeof useFlasher>): ReactElement =
           chipInfo={flasher.chipInfo}
           port={flasher.port}
           release={flasher.release}
+          logTruncated={flasher.logTruncated}
         />
       )
   }

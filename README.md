@@ -145,7 +145,10 @@ silently swallows any error:
   "outcome": "success" | "failed" | "cancelled",
   "chipFamily": "ESP32-S3" | null,
   "firmwareVersion": "vX.Y.Z" | null,
-  "durationMs": 28412,
+  "durationMs": 28412,         // total wall-clock
+  "downloadMs": 4210 | null,   // acquirePayload phase
+  "verifyMs":   75   | null,   // SHA-256 verifyPayload phase
+  "flashMs":    24127 | null,  // flashFirmware (writeFlash + hard reset)
   "errorClass":
     "flash-id-ffffff" | "sync-failed" | "sha256-mismatch" |
     "disconnect" | "http" | "cancelled" | "unknown" | null,
@@ -153,6 +156,10 @@ silently swallows any error:
   "os":      "Windows" | "macOS" | "Linux" | "Other"
 }
 ```
+
+The per-phase fields are `null` when the flash failed before reaching that
+phase (e.g. `flashMs` is `null` for an HTTP-404 during download). `durationMs`
+is always populated as the wall-clock total from flash start to terminal state.
 
 What is **never** sent: port VID/PID, full user agent (only coarse
 buckets), raw log contents, error messages, IP-derived fields, or

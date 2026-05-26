@@ -26,6 +26,10 @@ export interface LogReportInput {
   timestamp: Date
   /** Resolved firmware version (e.g. "1.2.3") — included when known. */
   firmwareVersion?: string | null
+  /** When true, the in-memory log buffer hit its cap and was rotated. */
+  truncated?: boolean
+  /** Cap in bytes — surfaced in the truncation marker when `truncated` is true. */
+  truncatedAtBytes?: number
 }
 
 /** Build a downloadable plain-text support report from the flash session. */
@@ -39,6 +43,11 @@ export function buildLogBlob(input: LogReportInput): Blob {
   ]
   if (input.firmwareVersion) {
     lines.push(`Firmware version: v${input.firmwareVersion}`)
+  }
+  if (input.truncated) {
+    const cap = input.truncatedAtBytes
+    const capLabel = typeof cap === 'number' ? `${String(cap)} bytes` : 'in-memory cap'
+    lines.push(`Log truncated at ${capLabel}`)
   }
   lines.push('', '---', input.log)
   return new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' })
