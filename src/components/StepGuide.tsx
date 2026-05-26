@@ -188,7 +188,9 @@ export function StepGuide({ state, direction = 'responsive' }: StepGuideProps): 
               {step.index}
             </span>
             <Icon className={ICON_BY_STATUS[status]} />
-            <span className={`text-sm font-medium ${LABEL_BY_STATUS[status]}`}>{step.label}</span>
+            <span className={`text-sm font-medium whitespace-nowrap ${LABEL_BY_STATUS[status]}`}>
+              {step.label}
+            </span>
           </li>
         )
       })}

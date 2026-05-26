@@ -87,9 +87,9 @@ export const Flasher = ({ webSerialSupported }: FlasherProps): ReactElement => {
   return (
     <div className="space-y-6">
       {isSimEnabled() ? <SimBadge /> : null}
-      <div className="md:grid md:grid-cols-[160px_1fr] md:gap-8 space-y-6 md:space-y-0">
+      <div className="md:grid md:grid-cols-[160px_1fr] md:gap-6 space-y-6 md:space-y-0">
         <StepGuide state={flasher.state} />
-        <div>{renderStateView(flasher)}</div>
+        <div className="md:border-l md:border-border md:pl-6">{renderStateView(flasher)}</div>
       </div>
       <HelpZone />
     </div>
