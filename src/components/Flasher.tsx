@@ -153,13 +153,13 @@ function ReleaseSummary({ release }: { release: Release }): ReactElement {
     <div className="space-y-2 rounded-md border border-border bg-surface-2 px-4 py-3 text-sm text-text-dim">
       <div>
         Latest: <span className="font-mono text-text">v{release.version}</span>
-        <span className="text-text-muted">
+        <span className="text-text-dim">
           {' '}
           (published {formatPublishedDate(release.publishedAt)})
         </span>
       </div>
       {release.notes.trim().length > 0 ? (
-        <details className="text-sm text-text-muted">
+        <details className="text-sm text-text-dim">
           <summary className="cursor-pointer">Release notes</summary>
           <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded border border-border bg-surface px-3 py-2 font-mono text-xs text-text-dim">
             {release.notes}
@@ -184,7 +184,7 @@ function IdleView({ onConnect, errorMessage, release }: IdleViewProps): ReactEle
       {release ? (
         <ReleaseSummary release={release} />
       ) : (
-        <div className="rounded-md border border-border bg-surface-2 px-4 py-3 text-sm text-text-muted">
+        <div className="rounded-md border border-border bg-surface-2 px-4 py-3 text-sm text-text-dim">
           Latest version: checking…
         </div>
       )}
