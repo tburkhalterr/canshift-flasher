@@ -89,14 +89,28 @@ export const SuccessView = ({
           and join it.
         </StepCard>
         <StepCard step={3} icon={<GlobeIcon />} title={`Open ${DASH_HOSTNAME} in your browser`}>
-          Type <span className="font-mono text-text">{DASH_HOSTNAME}</span> into the address
-          bar to reach Studio on the ESP32.
+          Type{' '}
+          <a
+            href={`http://${DASH_HOSTNAME}/`}
+            target="_blank"
+            rel="noreferrer"
+            className="font-mono text-text underline-offset-4 hover:underline"
+          >
+            {DASH_HOSTNAME}
+          </a>{' '}
+          into the address bar to reach Studio on the ESP32.
         </StepCard>
       </div>
 
-      <button type="button" onClick={onAgain} className={SECONDARY_CTA_CLASSES}>
-        Flash again
-      </button>
+      <div className="flex justify-center">
+        <button
+          type="button"
+          onClick={onAgain}
+          className={`w-full sm:w-auto sm:min-w-[16rem] ${SECONDARY_CTA_CLASSES} py-3 text-base font-semibold`}
+        >
+          Flash again
+        </button>
+      </div>
 
       <details className="text-sm text-text-muted">
         <summary className="cursor-pointer">Show log</summary>

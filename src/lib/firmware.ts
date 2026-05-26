@@ -80,18 +80,28 @@ export async function downloadFirmware(
   }
 
   const reader = response.body.getReader()
+  // `fetch()` honours the abort signal for the initial request, but once the
+  // body is streaming via the reader, AbortController.abort() doesn't always
+  // propagate through the underlying ReadableStream (browser-specific, worse
+  // behind Edge Function proxies). Cancel the reader explicitly so the next
+  // `read()` unblocks; the post-loop signal check converts that into a
+  // proper AbortError instead of returning a truncated buffer.
+  const onAbort = (): void => {
+    reader.cancel().catch(() => {})
+  }
+  signal?.addEventListener('abort', onAbort, { once: true })
+
   const chunks: Uint8Array[] = []
   let loaded = 0
 
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    if (value) {
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (!value) continue
       loaded += value.byteLength
       if (loaded > FIRMWARE_BINARY_MAX_BYTES) {
-        await reader.cancel().catch(() => {
-          /* best-effort: server may have already closed the stream */
-        })
+        await reader.cancel().catch(() => {})
         throw new FirmwareDownloadError(
           `Firmware download rejected: streamed ${String(loaded)} bytes exceeds cap of ${String(FIRMWARE_BINARY_MAX_BYTES)} bytes`,
         )
@@ -99,6 +109,12 @@ export async function downloadFirmware(
       chunks.push(value)
       onProgress({ loaded, total })
     }
+  } finally {
+    signal?.removeEventListener('abort', onAbort)
+  }
+
+  if (signal?.aborted) {
+    throw new DOMException('Firmware download aborted', 'AbortError')
   }
 
   const bytes = concatChunks(chunks, loaded)
