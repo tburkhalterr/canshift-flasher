@@ -34,6 +34,26 @@ export const FLASH_BAUD = 921_600
 export const INITIAL_BAUD = 115_200
 
 /**
+ * Allowed esptool stub baud rates exposed via the Advanced (recovery) panel.
+ * Ordered fastest-first so the default `FLASH_BAUD` reads naturally at the top
+ * of the select. Dropping to 460800 or below is a common workaround for flaky
+ * CH340 bridges on long USB cables / unpowered hubs.
+ */
+export const ADVANCED_BAUD_OPTIONS = [921_600, 460_800, 230_400, 115_200] as const
+export type AdvancedBaudRate = (typeof ADVANCED_BAUD_OPTIONS)[number]
+
+/** Default advanced options — same behaviour the flasher had before #22. */
+export const DEFAULT_ADVANCED_OPTIONS: {
+  fullErase: boolean
+  baudRate: AdvancedBaudRate
+  versionOverride: string | null
+} = {
+  fullErase: false,
+  baudRate: FLASH_BAUD,
+  versionOverride: null,
+}
+
+/**
  * Hard ceiling for firmware downloads.
  *
  * Current merged firmware images are ~1.5 MiB; 16 MiB gives ~10x headroom

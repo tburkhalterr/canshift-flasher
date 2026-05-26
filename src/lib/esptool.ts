@@ -29,6 +29,18 @@ export interface FlashRunOptions {
   onLog: (line: string) => void
   onProgress: (progress: FlashProgress) => void
   onChipInfo?: (chip: string) => void
+  /**
+   * Override the esptool stub baud rate. Defaults to `FLASH_BAUD` (921_600).
+   * Exposed as a recovery escape hatch via the Advanced panel — dropping to
+   * 460_800 / 230_400 / 115_200 helps flaky CH340 boards on macOS.
+   */
+  baudRate?: number
+  /**
+   * When true, request a full chip erase before flashing. Defaults to false.
+   * Mirrors `eraseAll` on `FlashOptions`. Recovery-only — a normal update
+   * leaves untouched regions alone.
+   */
+  fullErase?: boolean
 }
 
 const BOOTLOADER_GIVE_UP_MESSAGE =
@@ -56,6 +68,7 @@ async function attemptBootloaderEntry(
   variant: ResetVariant,
   onLog: (line: string) => void,
   flashIdState: FlashIdState,
+  baudRate: number,
 ): Promise<{ transport: Transport; loader: ESPLoader; chip: string }> {
   onLog(`Trying reset sequence: ${variant}...\n`)
   await runResetSequence(port, variant)
@@ -79,7 +92,7 @@ async function attemptBootloaderEntry(
   const transport = new Transport(port, /* tracing */ false)
   const loaderOptions: LoaderOptions = {
     transport,
-    baudrate: FLASH_BAUD,
+    baudrate: baudRate,
     terminal,
     enableTracing: false,
     debugLogging: false,
@@ -98,7 +111,16 @@ async function attemptBootloaderEntry(
  * are needed to cover stubborn CH340 boards on macOS.
  */
 export async function flashFirmware(options: FlashRunOptions): Promise<void> {
-  const { port, firmware, spiffs, onLog, onProgress, onChipInfo } = options
+  const {
+    port,
+    firmware,
+    spiffs,
+    onLog,
+    onProgress,
+    onChipInfo,
+    baudRate = FLASH_BAUD,
+    fullErase = false,
+  } = options
 
   // The ROM bootloader prints `Flash ID: ffffff` when the chip can't talk to
   // its own flash chip (usually a damaged USB cable, an unpowered hub, or a
@@ -116,7 +138,7 @@ export async function flashFirmware(options: FlashRunOptions): Promise<void> {
     const variant = RESET_VARIANT_ORDER[i]
     if (!variant) continue
     try {
-      const attempt = await attemptBootloaderEntry(port, variant, onLog, flashIdState)
+      const attempt = await attemptBootloaderEntry(port, variant, onLog, flashIdState, baudRate)
       transport = attempt.transport
       loader = attempt.loader
       chip = attempt.chip
@@ -174,7 +196,7 @@ export async function flashFirmware(options: FlashRunOptions): Promise<void> {
       flashMode: 'keep',
       flashFreq: 'keep',
       flashSize: 'keep',
-      eraseAll: false,
+      eraseAll: fullErase,
       compress: true,
       reportProgress: (_fileIndex, written, total) => {
         onProgress({ written, total })

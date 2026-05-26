@@ -22,6 +22,21 @@ User flow: plug dash → open canshift.tmbk.ch → "Connect" → "Flash latest" 
 
 No version picker. The flasher always pulls the latest published firmware.
 
+## Advanced (recovery)
+
+A collapsed `<details>` block under the "Flash latest" button exposes three
+power-user escape hatches **for support flows only**:
+
+| Control            | Purpose                                                                                   |
+| ------------------ | ----------------------------------------------------------------------------------------- |
+| Full erase         | Sets `eraseAll=true` on `writeFlash` — wipes the entire chip before the new image lands.  |
+| Baud rate          | Drops the esptool stub baud from `921600` → `460800` / `230400` / `115200`. Useful on flaky CH340 dashes with long USB cables. |
+| Version override   | Pins a specific release tag (e.g. `v0.9.1`). Hits `/releases/tags/{tag}` — same SHA-256 + SPIFFS rules apply. Leave blank to use latest. |
+
+The panel is collapsed by default and never persists across reloads — power
+users re-set per session, which keeps the default flow boring and prevents a
+mis-configured default from haunting a non-technical user.
+
 ## Stack
 
 - [Vite](https://vitejs.dev/) + [React 19](https://react.dev/) + TypeScript (strict)
