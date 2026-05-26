@@ -70,7 +70,7 @@ export const SuccessView = ({
 }: SuccessViewProps): ReactElement => {
   const heading = release ? `Flashed v${release.version} successfully` : 'Flashed successfully'
   return (
-    <section className="space-y-6">
+    <section className="space-y-4">
       <div className="flex flex-col items-center gap-3">
         <DashIllustration variant="success" />
         <h2 className="font-display text-lg font-bold tracking-wide text-success">{heading}</h2>

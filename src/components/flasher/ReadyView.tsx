@@ -26,7 +26,7 @@ export const ReadyView = ({
   onAdvancedChange,
 }: ReadyViewProps): ReactElement => {
   return (
-    <section className="space-y-6">
+    <section className="space-y-4">
       <div className="flex justify-center">
         <DashIllustration variant="ready" />
       </div>
@@ -45,7 +45,7 @@ export const ReadyView = ({
       <button
         type="button"
         onClick={onFlash}
-        className={`w-full ${PRIMARY_CTA_CLASSES} py-3 text-base font-semibold`}
+        className={`w-full sm:w-auto ${PRIMARY_CTA_CLASSES} py-3 text-base font-semibold`}
       >
         Flash latest
       </button>

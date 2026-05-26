@@ -34,7 +34,7 @@ export const FailedView = ({
   logTruncated,
 }: FailedViewProps): ReactElement => {
   return (
-    <section className="space-y-6">
+    <section className="space-y-4">
       <div className="flex justify-center">
         <DashIllustration variant="failed" />
       </div>
@@ -48,11 +48,19 @@ export const FailedView = ({
         </p>
       </div>
 
-      <div className="flex gap-3">
-        <button type="button" onClick={onRetry} className={PRIMARY_CTA_CLASSES}>
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <button
+          type="button"
+          onClick={onRetry}
+          className={`w-full sm:w-auto ${PRIMARY_CTA_CLASSES} py-3 text-base font-semibold`}
+        >
           Retry
         </button>
-        <button type="button" onClick={onReset} className={SECONDARY_CTA_CLASSES}>
+        <button
+          type="button"
+          onClick={onReset}
+          className={`w-full sm:w-auto ${SECONDARY_CTA_CLASSES}`}
+        >
           Start over
         </button>
       </div>

@@ -16,7 +16,7 @@ interface IdleViewProps {
 
 export const IdleView = ({ onConnect, errorMessage, release }: IdleViewProps): ReactElement => {
   return (
-    <section className="space-y-6">
+    <section className="space-y-4">
       <div className="flex justify-center">
         <DashIllustration variant="idle" />
       </div>
@@ -37,7 +37,11 @@ export const IdleView = ({ onConnect, errorMessage, release }: IdleViewProps): R
         </div>
       )}
 
-      <button type="button" onClick={onConnect} className={PRIMARY_CTA_CLASSES}>
+      <button
+        type="button"
+        onClick={onConnect}
+        className={`w-full sm:w-auto ${PRIMARY_CTA_CLASSES} py-3 text-base font-semibold`}
+      >
         Connect
       </button>
 

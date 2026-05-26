@@ -45,7 +45,7 @@ export const FlashingView = ({
   const canCancel = flashProgress === null
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-4">
       <div className="flex justify-center">
         <DashIllustration variant="flashing" />
       </div>
