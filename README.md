@@ -89,6 +89,15 @@ The default flow pulls release metadata + asset URLs directly from the
 canonical GitHub repository. `VITE_FIRMWARE_URL` is kept only for back-compat
 with deployments that pinned a self-hosted mirror.
 
+Two product-level identifiers are exposed as compile-time constants in
+`src/constants.ts` and are the flasher's single source of truth — they must
+match what `canshift-firmware` advertises on first boot:
+
+| Constant        | Value             | Purpose                                                       |
+| --------------- | ----------------- | ------------------------------------------------------------- |
+| `DASH_HOSTNAME` | `canshift.local`  | mDNS hostname the dash advertises on its AP after first boot. |
+| `DASH_AP_SSID`  | `CANShift`        | WiFi access point SSID the dash broadcasts on first boot.     |
+
 ### Firmware artifact format
 
 The flasher pulls release metadata from the canonical GitHub repo

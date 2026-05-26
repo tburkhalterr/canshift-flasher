@@ -16,6 +16,12 @@ export const SUPPORTED_USB_FILTERS: SerialPortFilter[] = [
  */
 export const GITHUB_REPO = 'tburkhalterr/CANShift'
 
+/** mDNS hostname the dash advertises on its AP after first boot. */
+export const DASH_HOSTNAME = 'canshift.local'
+
+/** WiFi access point SSID the dash broadcasts on first boot. */
+export const DASH_AP_SSID = 'CANShift'
+
 /**
  * @deprecated Static fallback URL used only when the GitHub Releases API is
  * unreachable. The default path is now `fetchLatestRelease()` → use the
