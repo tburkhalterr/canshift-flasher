@@ -1,10 +1,10 @@
 // src/components/flasher/IdleView.tsx
-import { useMemo, type ReactElement } from 'react'
+import type { ReactElement } from 'react'
 
 import type { AdvancedOptions } from '../../hooks/useFlasher'
-import { useReleaseChannel } from '../../hooks/useReleaseChannel'
+import type { UseReleaseChannelResult } from '../../hooks/useReleaseChannel'
 import { type LocalFirmware } from '../../lib/local-firmware'
-import { readDefaultChannel, type Release } from '../../lib/releases'
+import { type Release } from '../../lib/releases'
 
 import { ChannelPicker } from './ChannelPicker'
 import { ErrorBanner } from './ErrorBanner'
@@ -21,6 +21,7 @@ interface IdleViewProps {
   onAdvancedChange: (opts: AdvancedOptions) => void
   localFirmware: LocalFirmware | null
   onLocalFirmwareChange: (firmware: LocalFirmware | null) => void
+  channelState: UseReleaseChannelResult
 }
 
 export const IdleView = ({
@@ -31,11 +32,9 @@ export const IdleView = ({
   onAdvancedChange,
   localFirmware,
   onLocalFirmwareChange,
+  channelState,
 }: IdleViewProps): ReactElement => {
-  const initialChannel = useMemo(() => readDefaultChannel(), [])
-  const { channel, setChannel, releases, loading, error } =
-    useReleaseChannel(initialChannel)
-
+  const { channel, setChannel, releases, loading, error } = channelState
   const selectedTag = advanced.versionOverride ?? ''
 
   const handleChannelChange = (next: typeof channel): void => {
