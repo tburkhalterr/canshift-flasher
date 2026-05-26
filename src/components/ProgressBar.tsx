@@ -22,15 +22,17 @@ export function ProgressBar({ value, max, label }: ProgressBarProps): ReactEleme
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={determinate ? pct : undefined}
+        {...(determinate ? { 'aria-valuenow': pct } : { 'aria-busy': true })}
         className="h-2 w-full overflow-hidden rounded-full bg-surface-2"
       >
-        <div
-          className={`h-full rounded-full bg-status-danger transition-[width] duration-200 ${
-            determinate ? '' : 'animate-pulse'
-          }`}
-          style={{ width: determinate ? `${pct}%` : '40%' }}
-        />
+        {determinate ? (
+          <div
+            className="h-full rounded-full bg-status-danger transition-[width] duration-200"
+            style={{ width: `${pct}%` }}
+          />
+        ) : (
+          <div className="pb-indeterminate h-full rounded-full bg-status-danger" />
+        )}
       </div>
     </div>
   )

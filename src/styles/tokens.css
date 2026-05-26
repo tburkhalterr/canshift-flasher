@@ -68,3 +68,25 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Indeterminate progress bar sweep — used by <ProgressBar /> when value/max
+   is null. A 33%-wide segment slides from off-left to off-right on loop. */
+@keyframes pb-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.pb-indeterminate {
+  width: 33%;
+  animation: pb-indeterminate 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-indeterminate {
+    animation-duration: 4s;
+  }
+}
