@@ -11,7 +11,10 @@ import {
 const FIRMWARE_ASSET_NAME = 'canshift-firmware-v0.10.0-crowpanel_28-merged.bin'
 const SPIFFS_ASSET_NAME = 'canshift-spiffs-v0.10.0-crowpanel_28.bin'
 const FIRMWARE_URL = `https://example.test/${FIRMWARE_ASSET_NAME}`
+const FIRMWARE_API_URL = 'https://api.github.com/repos/x/y/releases/assets/1'
+const FIRMWARE_SHA_API_URL = 'https://api.github.com/repos/x/y/releases/assets/2'
 const SPIFFS_URL = `https://example.test/${SPIFFS_ASSET_NAME}`
+const SPIFFS_API_URL = 'https://api.github.com/repos/x/y/releases/assets/3'
 
 interface ReleasePayloadOverrides {
   tag_name?: string
@@ -33,13 +36,21 @@ const makeReleasePayload = (overrides: ReleasePayloadOverrides = {}): unknown =>
   if (withFirmware) {
     assets.push({
       name: FIRMWARE_ASSET_NAME,
+      url: FIRMWARE_API_URL,
       browser_download_url: FIRMWARE_URL,
       size: 1_572_864,
+    })
+    assets.push({
+      name: `${FIRMWARE_ASSET_NAME}.sha256`,
+      url: FIRMWARE_SHA_API_URL,
+      browser_download_url: `${FIRMWARE_URL}.sha256`,
+      size: 65,
     })
   }
   if (withSpiffs) {
     assets.push({
       name: SPIFFS_ASSET_NAME,
+      url: SPIFFS_API_URL,
       browser_download_url: SPIFFS_URL,
       size: 524_288,
     })
@@ -85,12 +96,14 @@ describe('fetchLatestRelease', () => {
     expect(release.publishedAt).toBe('2026-04-01T12:00:00Z')
     expect(release.notes).toBe('Release notes here.')
     expect(release.firmwareAsset).toEqual({
-      url: FIRMWARE_URL,
+      url: FIRMWARE_API_URL,
       sizeBytes: 1_572_864,
-      sha256Url: `${FIRMWARE_URL}.sha256`,
+      sha256Url: FIRMWARE_SHA_API_URL,
     })
     expect(release.spiffsAsset).toEqual({
-      url: SPIFFS_URL,
+      // No `.sha256` sibling asset for SPIFFS in this fixture — falls back to
+      // the legacy `${browser_download_url}.sha256` convention.
+      url: SPIFFS_API_URL,
       sizeBytes: 524_288,
       sha256Url: `${SPIFFS_URL}.sha256`,
     })
