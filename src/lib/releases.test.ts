@@ -221,6 +221,26 @@ describe('fetchReleaseByTag', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('accepts a whitespace-padded valid tag after trimming', async () => {
+    // SEC-005: trim still happens before the shape check, so `"v1.0.0 "` flows
+    // through normally rather than getting rejected for the trailing space.
+    fetchMock.mockResolvedValueOnce(jsonResponse(makeReleasePayload({ tag_name: 'v1.0.0' })))
+
+    const release = await fetchReleaseByTag('v1.0.0 ')
+    expect(release.tag).toBe('v1.0.0')
+    const call = fetchMock.mock.calls[0]
+    expect(call?.[0]).toMatch(/\/releases\/tags\/v1\.0\.0$/)
+  })
+
+  it.each([
+    ['shell metachars', 'v1.0.0; rm -rf'],
+    ['path traversal', '../etc/passwd'],
+    ['oversized tag', 'a'.repeat(100)],
+  ])('rejects %s without calling fetch (SEC-005)', async (_label, bad) => {
+    await expect(fetchReleaseByTag(bad)).rejects.toThrow(/invalid version tag/i)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('throws on non-404 HTTP errors', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({}, 500))
 
