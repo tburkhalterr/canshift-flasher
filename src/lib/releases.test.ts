@@ -96,14 +96,15 @@ describe('fetchLatestRelease', () => {
     expect(release.publishedAt).toBe('2026-04-01T12:00:00Z')
     expect(release.notes).toBe('Release notes here.')
     expect(release.firmwareAsset).toEqual({
-      url: FIRMWARE_API_URL,
+      url: `/api/firmware-proxy?url=${encodeURIComponent(FIRMWARE_API_URL)}`,
       sizeBytes: 1_572_864,
-      sha256Url: FIRMWARE_SHA_API_URL,
+      sha256Url: `/api/firmware-proxy?url=${encodeURIComponent(FIRMWARE_SHA_API_URL)}`,
     })
     expect(release.spiffsAsset).toEqual({
       // No `.sha256` sibling asset for SPIFFS in this fixture — falls back to
-      // the legacy `${browser_download_url}.sha256` convention.
-      url: SPIFFS_API_URL,
+      // the legacy `${browser_download_url}.sha256` convention (not proxied —
+      // canshift.tmbk.ch serves it directly with CORS).
+      url: `/api/firmware-proxy?url=${encodeURIComponent(SPIFFS_API_URL)}`,
       sizeBytes: 524_288,
       sha256Url: `${SPIFFS_URL}.sha256`,
     })

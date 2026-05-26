@@ -135,16 +135,26 @@ function isRelease(v: unknown): v is GitHubRelease {
   return true
 }
 
+/**
+ * GitHub's release-asset CDN does not send CORS headers, so the flasher routes
+ * every binary download through `/api/firmware-proxy?url=…` — a same-origin
+ * endpoint that adds them server-side. See `api/firmware-proxy.ts`.
+ */
+const FIRMWARE_PROXY_BASE = '/api/firmware-proxy'
+
+const throughProxy = (url: string): string =>
+  `${FIRMWARE_PROXY_BASE}?url=${encodeURIComponent(url)}`
+
 function toReleaseAsset(asset: GitHubAsset, sha256Asset: GitHubAsset | null): ReleaseAsset {
   return {
-    // Use the API URL so the firmware download has CORS — `browser_download_url`
-    // (github.com/.../download/...) issues a 302 without CORS headers.
-    url: asset.url,
+    url: throughProxy(asset.url),
     sizeBytes: asset.size,
-    // Prefer the sibling `.sha256` asset's API URL when published. Fall back to
-    // the `browser_download_url + .sha256` convention so old releases still work
-    // (raw object hosts also serve sha256 sidecars under that path).
-    sha256Url: sha256Asset?.url ?? `${asset.browser_download_url}.sha256`,
+    // Prefer the sibling `.sha256` asset (also proxied). Old releases that
+    // don't publish a separate .sha256 asset fall back to the legacy
+    // `${browser_download_url}.sha256` convention served by canshift.tmbk.ch.
+    sha256Url: sha256Asset
+      ? throughProxy(sha256Asset.url)
+      : `${asset.browser_download_url}.sha256`,
   }
 }
 
@@ -187,10 +197,10 @@ let cachedFullPromise: Promise<Release[]> | null = null
  * render the UI. Stale-while-revalidate: a cached entry is returned immediately
  * even past its TTL, and a background refresh updates the cache for next time.
  */
-// `v2` invalidates caches written before we switched firmware URLs from
-// `github.com/.../releases/download/...` (no CORS, 302-blocked) to the
-// `api.github.com/repos/.../releases/assets/{id}` API endpoint.
-const LS_CACHE_KEY = 'canshift-flasher.releases.v2'
+// `v3` invalidates caches that still held the api.github.com asset URLs (they
+// 302 to a CORS-less CDN); we now persist proxy-rewritten URLs so the cached
+// firmwareAsset.url is directly fetchable without rewriting it at read time.
+const LS_CACHE_KEY = 'canshift-flasher.releases.v3'
 /** 10 minutes — short enough that a release ships quickly, long enough to
  *  shield casual reloads from the 60 req/h anon rate limit. */
 const LS_CACHE_TTL_MS = 10 * 60 * 1000
