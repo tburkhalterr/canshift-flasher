@@ -86,11 +86,15 @@ export const MERGED_FLASH_OFFSET = 0x0
 /**
  * Flash offset for the SPIFFS partition.
  *
- * Pulled from canshift-firmware's `ota_4mb.csv` partition table — the SPIFFS
- * partition starts at 0x310000 on the supported 4 MB layout. Mirrors the
- * offset used by canshift-studio's useFirmwareFlash hook.
+ * Pulled from canshift-firmware's `ota_4mb_wifi.csv` partition table (post
+ * tburkhalterr/CANShift#1120 repartition) — the SPIFFS partition now starts
+ * at 0x370000 on the 4 MB layout that supports the dash-hosted Studio SPA
+ * embed. Mirrors the offset used by canshift-studio's useFirmwareFlash hook
+ * (updated in CANShift PR #1121). Pre-#1120 firmware images used 0x310000;
+ * dashes flashed with the old layout MUST be USB-reflashed with a #1120+
+ * image to migrate, as OTA between the two layouts is unsafe.
  */
-export const SPIFFS_FLASH_OFFSET = 0x310000
+export const SPIFFS_FLASH_OFFSET = 0x370000
 
 /**
  * Build-time simulation flag.
