@@ -93,6 +93,20 @@ describe('runResetSequence', () => {
     expect(port.calls).toHaveLength(0)
   })
 
+  it('returns early when setSignals throws (port closed mid-sequence)', async () => {
+    const port = makeMockPort()
+    vi.spyOn(port, 'setSignals').mockRejectedValueOnce(
+      new DOMException('The port is closed.', 'InvalidStateError'),
+    )
+
+    await expect(
+      runUnderFakeTimers(runResetSequence(port as unknown as SerialPort, 'classic')),
+    ).resolves.toBeUndefined()
+    // Only the failing call was attempted — the loop bailed instead of
+    // throwing or hammering the closed port.
+    expect(port.setSignals).toHaveBeenCalledTimes(1)
+  })
+
   it('waits the configured durations between steps', async () => {
     const port = makeMockPort()
     const setSignalsSpy = vi.spyOn(port, 'setSignals')

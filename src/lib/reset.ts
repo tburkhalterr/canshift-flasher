@@ -90,10 +90,18 @@ export async function runResetSequence(
 
   const steps = resetSequenceFor(variant)
   for (const step of steps) {
-    await port.setSignals({
-      dataTerminalReady: step.signals.dtr,
-      requestToSend: step.signals.rts,
-    })
+    try {
+      await port.setSignals({
+        dataTerminalReady: step.signals.dtr,
+        requestToSend: step.signals.rts,
+      })
+    } catch {
+      // setSignals can transiently fail when the port closes between checks
+      // ("The port is closed") or while esptool is mid-handshake. Swallowing
+      // is safer than aborting the whole sequence — the next variant (or
+      // esptool's own internal reset) often recovers from here.
+      return
+    }
     if (step.waitMs > 0) await sleepMs(step.waitMs)
   }
 }
