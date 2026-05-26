@@ -1,5 +1,5 @@
 // src/components/flasher/FailedView.tsx
-import type { ReactElement } from 'react'
+import { useEffect, useRef, type ReactElement } from 'react'
 
 import type { Release } from '../../lib/releases'
 import { LogStream } from '../LogStream'
@@ -33,13 +33,23 @@ export const FailedView = ({
   release,
   logTruncated,
 }: FailedViewProps): ReactElement => {
+  const retryRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    retryRef.current?.focus()
+  }, [])
+
   return (
     <section className="space-y-4">
       <div className="flex justify-center">
         <DashIllustration variant="failed" />
       </div>
 
-      <div className="space-y-2 rounded-md border border-status-danger/60 bg-status-danger-dim px-4 py-4">
+      <div
+        role="alert"
+        aria-live="assertive"
+        className="space-y-2 rounded-md border border-status-danger/60 bg-status-danger-dim px-4 py-4"
+      >
         <h2 className={SECTION_HEADER_CLASSES}>Flash failed</h2>
         <p className="break-all font-mono text-sm text-text-dim">{errorMessage ?? 'Unknown error'}</p>
         <p className="text-sm leading-relaxed text-text-muted">
@@ -50,6 +60,7 @@ export const FailedView = ({
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <button
+          ref={retryRef}
           type="button"
           onClick={onRetry}
           className={`w-full sm:w-auto ${PRIMARY_CTA_CLASSES} py-3 text-base font-semibold`}
