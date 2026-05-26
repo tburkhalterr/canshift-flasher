@@ -38,6 +38,15 @@ function readPrereleaseFlag(): boolean {
 export interface ReleaseAsset {
   url: string
   sizeBytes: number
+  /**
+   * SHA-256 hex digest published by GitHub on the asset metadata (the `digest`
+   * field, formatted as `sha256:HEX`). Preferred over fetching `sha256Url`
+   * since it avoids a second request and works even when no `.sha256` sidecar
+   * was published alongside the binary.
+   */
+  expectedSha256: string | null
+  /** Legacy sidecar manifest URL — kept as a fallback for releases that
+   *  predate GitHub's `digest` field. */
   sha256Url: string
 }
 
@@ -100,6 +109,11 @@ interface GitHubAsset {
   url: string
   browser_download_url: string
   size: number
+  /**
+   * SHA-256 (or other) digest published by GitHub. Format: `"sha256:HEX"`.
+   * May be absent on older releases or non-octet-stream assets.
+   */
+  digest?: string | null
 }
 
 interface GitHubRelease {
@@ -114,6 +128,7 @@ interface GitHubRelease {
 function isAsset(v: unknown): v is GitHubAsset {
   if (typeof v !== 'object' || v === null) return false
   const a = v as Record<string, unknown>
+  if (a.digest !== undefined && a.digest !== null && typeof a.digest !== 'string') return false
   return (
     typeof a.name === 'string' &&
     typeof a.url === 'string' &&
@@ -121,6 +136,14 @@ function isAsset(v: unknown): v is GitHubAsset {
     typeof a.size === 'number' &&
     Number.isFinite(a.size)
   )
+}
+
+const DIGEST_RE = /^sha256:([0-9a-f]{64})$/i
+
+const extractSha256 = (digest: string | null | undefined): string | null => {
+  if (!digest) return null
+  const match = DIGEST_RE.exec(digest)
+  return match?.[1] ? match[1].toLowerCase() : null
 }
 
 function isRelease(v: unknown): v is GitHubRelease {
@@ -149,9 +172,9 @@ function toReleaseAsset(asset: GitHubAsset, sha256Asset: GitHubAsset | null): Re
   return {
     url: throughProxy(asset.url),
     sizeBytes: asset.size,
-    // Prefer the sibling `.sha256` asset (also proxied). Old releases that
-    // don't publish a separate .sha256 asset fall back to the legacy
-    // `${browser_download_url}.sha256` convention served by canshift.tmbk.ch.
+    expectedSha256: extractSha256(asset.digest),
+    // Sidecar manifest URL kept for releases that predate GitHub's `digest`
+    // field. New releases skip the fetch entirely.
     sha256Url: sha256Asset
       ? throughProxy(sha256Asset.url)
       : `${asset.browser_download_url}.sha256`,
@@ -197,10 +220,10 @@ let cachedFullPromise: Promise<Release[]> | null = null
  * render the UI. Stale-while-revalidate: a cached entry is returned immediately
  * even past its TTL, and a background refresh updates the cache for next time.
  */
-// `v3` invalidates caches that still held the api.github.com asset URLs (they
-// 302 to a CORS-less CDN); we now persist proxy-rewritten URLs so the cached
-// firmwareAsset.url is directly fetchable without rewriting it at read time.
-const LS_CACHE_KEY = 'canshift-flasher.releases.v3'
+// `v4` invalidates caches that lack the `expectedSha256` field (added with the
+// `digest`-based verification path). Old cached entries would fall back to the
+// 404ing sidecar URL.
+const LS_CACHE_KEY = 'canshift-flasher.releases.v4'
 /** 10 minutes — short enough that a release ships quickly, long enough to
  *  shield casual reloads from the 60 req/h anon rate limit. */
 const LS_CACHE_TTL_MS = 10 * 60 * 1000

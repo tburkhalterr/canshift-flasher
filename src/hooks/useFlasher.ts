@@ -338,8 +338,10 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
         payload = {
           firmwareBytes: local.bytes,
           firmwareManifestUrl: '',
+          firmwareExpectedSha256: null,
           spiffsBytes: null,
           spiffsManifestUrl: null,
+          spiffsExpectedSha256: null,
         }
         tDownloadDone = performance.now()
         tVerifyDone = tDownloadDone

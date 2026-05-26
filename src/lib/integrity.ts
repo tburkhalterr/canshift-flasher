@@ -162,12 +162,47 @@ async function fetchManifestText(manifestUrl: string): Promise<string> {
 }
 
 /**
+ * Verifies a downloaded firmware buffer against a known SHA-256 hex digest
+ * (e.g. the value GitHub publishes in each release asset's `digest` field as
+ * `"sha256:HEX"`). Throws `FirmwareIntegrityError` on mismatch; returns the
+ * verified digest on success. Avoids the second network round-trip that
+ * `verifyFirmwareSha256` needs when the publisher exposes the digest inline.
+ */
+export async function verifyFirmwareDigest(
+  buffer: ArrayBuffer | Uint8Array,
+  expectedHex: string,
+): Promise<string> {
+  const expected = expectedHex.toLowerCase()
+  if (!/^[0-9a-f]{64}$/.test(expected)) {
+    throw new FirmwareIntegrityError(
+      'malformed',
+      `Firmware rejected: expected SHA-256 digest is not a 64-char hex string ("${expectedHex}").`,
+    )
+  }
+  const actual = await computeSha256Hex(buffer)
+  if (!timingSafeEqualHex(actual, expected)) {
+    throw new FirmwareIntegrityError(
+      'mismatch',
+      `Firmware rejected: SHA-256 mismatch (expected ${expected}, got ${actual}). ` +
+        `The downloaded image does not match the publisher's digest — refusing to flash.`,
+      expected,
+      actual,
+    )
+  }
+  return actual
+}
+
+/**
  * Verifies that the downloaded firmware buffer matches its published SHA-256
  * manifest. Throws `FirmwareIntegrityError` on every failure mode — caller
  * is expected to surface the message to the user and refuse to flash.
  *
  * `manifestUrl` is the sibling URL (typically `${firmwareUrl}.sha256`). On
  * success, returns the verified hex digest (useful for log lines).
+ *
+ * Prefer `verifyFirmwareDigest` when the publisher exposes the digest inline
+ * (GitHub releases now do, via the asset metadata's `digest` field) — that
+ * path is one network call shorter and immune to sidecar-availability bugs.
  */
 export async function verifyFirmwareSha256(
   buffer: ArrayBuffer | Uint8Array,

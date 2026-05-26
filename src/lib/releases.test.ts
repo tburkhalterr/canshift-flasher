@@ -98,6 +98,7 @@ describe('fetchLatestRelease', () => {
     expect(release.firmwareAsset).toEqual({
       url: `/api/firmware-proxy?url=${encodeURIComponent(FIRMWARE_API_URL)}`,
       sizeBytes: 1_572_864,
+      expectedSha256: null, // fixture omits `digest` — exercised in another test
       sha256Url: `/api/firmware-proxy?url=${encodeURIComponent(FIRMWARE_SHA_API_URL)}`,
     })
     expect(release.spiffsAsset).toEqual({
@@ -106,6 +107,7 @@ describe('fetchLatestRelease', () => {
       // canshift.tmbk.ch serves it directly with CORS).
       url: `/api/firmware-proxy?url=${encodeURIComponent(SPIFFS_API_URL)}`,
       sizeBytes: 524_288,
+      expectedSha256: null,
       sha256Url: `${SPIFFS_URL}.sha256`,
     })
     // Always hits /releases, never /releases/latest — keeps the console clean

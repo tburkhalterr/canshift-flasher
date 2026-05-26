@@ -41,7 +41,7 @@ export const FailedView = ({
 
       <div className="space-y-2 rounded-md border border-status-danger/60 bg-status-danger-dim px-4 py-4">
         <h2 className={SECTION_HEADER_CLASSES}>Flash failed</h2>
-        <p className="font-mono text-sm text-text-dim">{errorMessage ?? 'Unknown error'}</p>
+        <p className="break-all font-mono text-sm text-text-dim">{errorMessage ?? 'Unknown error'}</p>
         <p className="text-sm leading-relaxed text-text-muted">
           If retry keeps failing: check the USB cable, try a different USB port, and reboot
           the ESP32 before retrying.

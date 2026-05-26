@@ -19,7 +19,7 @@ export function LogStream({ log }: LogStreamProps): ReactElement {
       ref={ref}
       aria-live="polite"
       aria-atomic="false"
-      className="h-48 w-full overflow-auto rounded-md border border-border bg-scrim p-3 font-mono text-xs leading-relaxed text-text-dim"
+      className="h-48 w-full overflow-auto whitespace-pre-wrap break-all rounded-md border border-border bg-scrim p-3 font-mono text-xs leading-relaxed text-text-dim"
     >
       {log || '(waiting...)'}
     </pre>

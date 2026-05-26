@@ -12,14 +12,17 @@ import {
   downloadFirmwareBundle,
   type FirmwareDownloadProgress,
 } from './firmware'
-import { verifyFirmwareSha256 } from './integrity'
+import { verifyFirmwareDigest, verifyFirmwareSha256 } from './integrity'
 import { fetchReleaseByTag, type Release } from './releases'
 
 export interface AcquireResult {
   firmwareBytes: Uint8Array
   firmwareManifestUrl: string
+  /** GitHub-published digest hex (preferred over manifestUrl when present). */
+  firmwareExpectedSha256: string | null
   spiffsBytes: Uint8Array | null
   spiffsManifestUrl: string | null
+  spiffsExpectedSha256: string | null
 }
 
 export interface AcquireProgress {
@@ -93,8 +96,10 @@ export const acquirePayload = async (
     return {
       firmwareBytes: bundle.firmware.bytes,
       firmwareManifestUrl: bundle.firmwareManifestUrl,
+      firmwareExpectedSha256: release.firmwareAsset.expectedSha256,
       spiffsBytes: bundle.spiffs?.bytes ?? null,
       spiffsManifestUrl: bundle.spiffsManifestUrl,
+      spiffsExpectedSha256: release.spiffsAsset?.expectedSha256 ?? null,
     }
   }
 
@@ -110,8 +115,10 @@ export const acquirePayload = async (
   return {
     firmwareBytes: bytes,
     firmwareManifestUrl: `${FIRMWARE_URL}.sha256`,
+    firmwareExpectedSha256: null,
     spiffsBytes: null,
     spiffsManifestUrl: null,
+    spiffsExpectedSha256: null,
   }
 }
 
@@ -125,11 +132,17 @@ export const verifyPayload = async (
   onLog: (line: string) => void,
 ): Promise<void> => {
   onLog('Verifying firmware SHA-256...\n')
-  const fwDigest = await verifyFirmwareSha256(result.firmwareBytes, result.firmwareManifestUrl)
+  const fwDigest = result.firmwareExpectedSha256
+    ? await verifyFirmwareDigest(result.firmwareBytes, result.firmwareExpectedSha256)
+    : await verifyFirmwareSha256(result.firmwareBytes, result.firmwareManifestUrl)
   onLog(`Firmware SHA-256 OK (${fwDigest}).\n`)
-  if (result.spiffsBytes && result.spiffsManifestUrl) {
+  if (result.spiffsBytes) {
     onLog('Verifying SPIFFS SHA-256...\n')
-    const spiffsDigest = await verifyFirmwareSha256(result.spiffsBytes, result.spiffsManifestUrl)
-    onLog(`SPIFFS SHA-256 OK (${spiffsDigest}).\n`)
+    const spiffsDigest = result.spiffsExpectedSha256
+      ? await verifyFirmwareDigest(result.spiffsBytes, result.spiffsExpectedSha256)
+      : result.spiffsManifestUrl
+        ? await verifyFirmwareSha256(result.spiffsBytes, result.spiffsManifestUrl)
+        : null
+    if (spiffsDigest) onLog(`SPIFFS SHA-256 OK (${spiffsDigest}).\n`)
   }
 }
