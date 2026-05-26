@@ -7,10 +7,13 @@
     <meta name="description" content="USB firmware flasher for the CANShift dash. Chromium browser, one click, latest firmware." />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
     <title>CANShift Flasher</title>
   </head>
   <body class="bg-bg text-text">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script src="/sw-register.js" defer></script>
   </body>
 </html>

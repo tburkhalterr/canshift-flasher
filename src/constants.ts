@@ -49,3 +49,15 @@ export const FIRMWARE_BINARY_MAX_BYTES = 16 * 1024 * 1024
  * (the merged image is always written at 0x0).
  */
 export const MERGED_FLASH_OFFSET = 0x0
+
+/**
+ * Telemetry collection endpoint. Opt-in only — there is no default.
+ *
+ * When unset (the stock build), all telemetry calls are no-ops. When set
+ * at build time, the flasher fires one tiny anonymous JSON blob per
+ * flash attempt (outcome, chip family, error class, duration). See
+ * `src/lib/telemetry.ts` for the exact shape and the per-user opt-out.
+ */
+export const TELEMETRY_URL: string | undefined = import.meta.env.VITE_TELEMETRY_URL as
+  | string
+  | undefined
