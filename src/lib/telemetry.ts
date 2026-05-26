@@ -33,7 +33,14 @@ export interface TelemetryEvent {
   outcome: TelemetryOutcome
   chipFamily: string | null
   firmwareVersion: string | null
+  /** Total wall-clock duration from flash start to terminal state. */
   durationMs: number
+  /** Time spent in `acquirePayload`. `null` when the flash failed before the download started. */
+  downloadMs: number | null
+  /** Time spent in `verifyPayload`. `null` when the flash failed before verification started. */
+  verifyMs: number | null
+  /** Time spent in `flashFirmware` (writeFlash + hard reset). `null` when the flash failed before write started. */
+  flashMs: number | null
   errorClass: TelemetryErrorClass | null
 }
 

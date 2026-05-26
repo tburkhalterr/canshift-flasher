@@ -29,6 +29,9 @@ const SAMPLE_EVENT: TelemetryEvent = {
   chipFamily: 'ESP32-S3',
   firmwareVersion: '0.10.0',
   durationMs: 4_321,
+  downloadMs: 1_200,
+  verifyMs: 80,
+  flashMs: 3_041,
   errorClass: null,
 }
 
@@ -80,6 +83,9 @@ describe('sendTelemetry', () => {
     expect(parsed.chipFamily).toBe('ESP32-S3')
     expect(parsed.firmwareVersion).toBe('0.10.0')
     expect(parsed.durationMs).toBe(4_321)
+    expect(parsed.downloadMs).toBe(1_200)
+    expect(parsed.verifyMs).toBe(80)
+    expect(parsed.flashMs).toBe(3_041)
     expect(parsed.errorClass).toBeNull()
     // UA buckets are appended — exact values depend on the test runner's UA.
     expect(typeof parsed.browser).toBe('string')

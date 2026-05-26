@@ -191,7 +191,25 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
     }
 
     const startedAt = performance.now()
+    let tDownloadDone: number | null = null
+    let tVerifyDone: number | null = null
+    let tFlashDone: number | null = null
     let detectedChip: string | null = null
+
+    const phaseMs = (
+      from: number,
+      to: number | null,
+    ): number | null => (to === null ? null : Math.round(to - from))
+
+    const buildPhaseTimings = (): {
+      downloadMs: number | null
+      verifyMs: number | null
+      flashMs: number | null
+    } => ({
+      downloadMs: phaseMs(startedAt, tDownloadDone),
+      verifyMs: tDownloadDone === null ? null : phaseMs(tDownloadDone, tVerifyDone),
+      flashMs: tVerifyDone === null ? null : phaseMs(tVerifyDone, tFlashDone),
+    })
 
     const abortController = new AbortController()
     downloadAbortRef.current = abortController
@@ -211,6 +229,7 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
         chipFamily: detectedChip,
         firmwareVersion: releaseRef.current?.version ?? null,
         durationMs: Math.round(performance.now() - startedAt),
+        ...buildPhaseTimings(),
         errorClass: 'disconnect',
       })
     })
@@ -233,8 +252,10 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
           }))
         },
       })
+      tDownloadDone = performance.now()
 
       await verifyPayload(payload, appendLog)
+      tVerifyDone = performance.now()
 
       // Once writeFlash is about to start, cancellation is no longer offered —
       // drop the controller so the UI hides the Cancel button.
@@ -262,6 +283,7 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
         baudRate: advanced.baudRate,
         fullErase: advanced.fullErase,
       })
+      tFlashDone = performance.now()
 
       disconnectGuard.detach()
       downloadAbortRef.current = null
@@ -271,6 +293,7 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
         chipFamily: detectedChip,
         firmwareVersion: releaseRef.current?.version ?? null,
         durationMs: Math.round(performance.now() - startedAt),
+        ...buildPhaseTimings(),
         errorClass: null,
       })
     } catch (err) {
@@ -293,6 +316,7 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
           chipFamily: detectedChip,
           firmwareVersion: releaseRef.current?.version ?? null,
           durationMs: Math.round(performance.now() - startedAt),
+          ...buildPhaseTimings(),
           errorClass: 'cancelled',
         })
         return
@@ -305,6 +329,7 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
         chipFamily: detectedChip,
         firmwareVersion: releaseRef.current?.version ?? null,
         durationMs: Math.round(performance.now() - startedAt),
+        ...buildPhaseTimings(),
         errorClass: classifyError(err),
       })
     }
