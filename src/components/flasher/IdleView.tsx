@@ -16,12 +16,9 @@ interface IdleViewProps {
 
 export const IdleView = ({ onConnect, errorMessage, release }: IdleViewProps): ReactElement => {
   return (
-    <section className="space-y-6">
-      <div className="flex flex-col items-center gap-3">
+    <section className="space-y-4">
+      <div className="flex justify-center">
         <DashIllustration variant="idle" />
-        <p className="text-sm leading-relaxed text-text-dim">
-          Plug your dash in via USB to begin.
-        </p>
       </div>
 
       <div className="space-y-2">
@@ -40,7 +37,11 @@ export const IdleView = ({ onConnect, errorMessage, release }: IdleViewProps): R
         </div>
       )}
 
-      <button type="button" onClick={onConnect} className={PRIMARY_CTA_CLASSES}>
+      <button
+        type="button"
+        onClick={onConnect}
+        className={`w-full sm:w-auto ${PRIMARY_CTA_CLASSES} py-3 text-base font-semibold`}
+      >
         Connect
       </button>
 

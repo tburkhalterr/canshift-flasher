@@ -123,10 +123,12 @@ function statusFor(stepIndex: number, activeStep: number): StepStatus {
 // - 'responsive' — horizontal on mobile, vertical on md+ (Tailwind `md:` breakpoint).
 type StepGuideDirection = 'horizontal' | 'vertical' | 'responsive'
 
+// `self-start` keeps the guide pinned to the top of its grid cell instead of
+// stretching to match the taller right column.
 const LIST_CLASS_BY_DIRECTION: Record<StepGuideDirection, string> = {
-  horizontal: 'flex flex-row flex-wrap gap-2',
-  vertical: 'flex flex-col gap-2',
-  responsive: 'flex flex-row flex-wrap gap-2 md:flex-col md:flex-nowrap',
+  horizontal: 'flex flex-row flex-wrap gap-2 self-start',
+  vertical: 'flex flex-col gap-3 self-start',
+  responsive: 'flex flex-row flex-wrap gap-2 self-start md:flex-col md:flex-nowrap md:gap-3',
 }
 
 const CARD_CLASS_BY_DIRECTION: Record<StepGuideDirection, string> = {
