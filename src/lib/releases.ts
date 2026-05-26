@@ -489,6 +489,17 @@ export const fetchRecentReleases = async (limit = 10): Promise<RecentRelease[]> 
 }
 
 /**
+ * SEC-005: power users type into the version-override input freely, and the
+ * old code `encodeURIComponent`d whatever they typed straight into the GitHub
+ * API URL. `..`, control chars, megabyte-long strings, and shell metachars all
+ * reached api.github.com — burning the 60 req/h anon rate-limit budget and
+ * surfacing GitHub errors verbatim. Git tags are alnum + `._+-` in practice;
+ * this regex enforces that shape before any network call.
+ */
+// `-` is unambiguous at the end of the class, so no backslash escape needed.
+const TAG_RE = /^[\w.+-]{1,64}$/
+
+/**
  * Fetches a specific release by Git tag (e.g. `v0.9.1`).
  *
  * Used by the Advanced (recovery) panel's "Version override" input — power
@@ -499,6 +510,11 @@ export async function fetchReleaseByTag(tag: string): Promise<Release> {
   const trimmed = tag.trim()
   if (trimmed.length === 0) {
     throw new Error('Version override is empty')
+  }
+  if (!TAG_RE.test(trimmed)) {
+    throw new Error(
+      `Invalid version tag "${trimmed}" — must match [A-Za-z0-9._+\\-]{1,64}`,
+    )
   }
   const url = `https://api.github.com/repos/${GITHUB_REPO}/releases/tags/${encodeURIComponent(trimmed)}`
   const controller = new AbortController()
