@@ -140,8 +140,20 @@ async function attemptBootloaderEntry(
     debugLogging: false,
   }
   const loader = new ESPLoader(loaderOptions)
-  const chip = await loader.main()
-  return { transport, loader, chip }
+  try {
+    const chip = await loader.main()
+    return { transport, loader, chip }
+  } catch (err) {
+    // Always release the port before letting the next variant try its luck.
+    // Without this the second/third pass sees "The port is already open"
+    // because the failed Transport never relinquished its handle.
+    try {
+      await transport.disconnect()
+    } catch {
+      /* best-effort */
+    }
+    throw err
+  }
 }
 
 /**
