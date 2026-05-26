@@ -234,7 +234,7 @@ export const HelpZone = (): ReactElement => (
       Troubleshooting
     </h2>
 
-    <div className="mt-4 space-y-3">
+    <div className="mt-4 space-y-3 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
       {TOPICS.map((topic) => (
         <div
           key={topic.question}
