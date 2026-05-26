@@ -117,8 +117,24 @@ function statusFor(stepIndex: number, activeStep: number): StepStatus {
   return 'pending'
 }
 
-const CARD_BASE =
-  'flex flex-1 min-w-[120px] flex-row items-center gap-2 rounded-md border px-3 py-2.5'
+// Direction:
+// - 'horizontal' — 3 cards in a row (legacy mobile-friendly layout).
+// - 'vertical' — 3 cards stacked, label right of icon.
+// - 'responsive' — horizontal on mobile, vertical on md+ (Tailwind `md:` breakpoint).
+type StepGuideDirection = 'horizontal' | 'vertical' | 'responsive'
+
+const LIST_CLASS_BY_DIRECTION: Record<StepGuideDirection, string> = {
+  horizontal: 'flex flex-row flex-wrap gap-2',
+  vertical: 'flex flex-col gap-2',
+  responsive: 'flex flex-row flex-wrap gap-2 md:flex-col md:flex-nowrap',
+}
+
+const CARD_CLASS_BY_DIRECTION: Record<StepGuideDirection, string> = {
+  horizontal: 'flex flex-1 min-w-[120px] flex-row items-center gap-2 rounded-md border px-3 py-2.5',
+  vertical: 'flex w-full flex-row items-center gap-2 rounded-md border px-3 py-2.5',
+  responsive:
+    'flex flex-1 min-w-[120px] flex-row items-center gap-2 rounded-md border px-3 py-2.5 md:w-full md:flex-none',
+}
 
 const CARD_BY_STATUS: Record<StepStatus, string> = {
   pending: 'border-border bg-surface',
@@ -146,16 +162,14 @@ const NUMBER_BY_STATUS: Record<StepStatus, string> = {
 
 interface StepGuideProps {
   state: FlasherState
+  direction?: StepGuideDirection
 }
 
-export function StepGuide({ state }: StepGuideProps): ReactElement {
+export function StepGuide({ state, direction = 'responsive' }: StepGuideProps): ReactElement {
   const activeStep = getActiveStep(state)
 
   return (
-    <ol
-      aria-label="Flashing progress"
-      className="flex flex-row flex-wrap gap-2"
-    >
+    <ol aria-label="Flashing progress" className={LIST_CLASS_BY_DIRECTION[direction]}>
       {STEPS.map((step) => {
         const status = statusFor(step.index, activeStep)
         const Icon = status === 'done' ? CheckCircleIcon : step.icon
@@ -165,7 +179,7 @@ export function StepGuide({ state }: StepGuideProps): ReactElement {
             key={step.index}
             aria-label={ariaLabel}
             {...(status === 'active' ? { 'aria-current': 'step' as const } : {})}
-            className={`${CARD_BASE} ${CARD_BY_STATUS[status]}`}
+            className={`${CARD_CLASS_BY_DIRECTION[direction]} ${CARD_BY_STATUS[status]}`}
           >
             <span
               aria-hidden="true"
