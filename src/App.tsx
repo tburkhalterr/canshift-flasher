@@ -69,7 +69,10 @@ export function App(): ReactElement {
 
         <aside
           aria-label="Help"
-          aria-hidden={!helpOpen}
+          // `inert` (not just aria-hidden) is what keeps focusable descendants
+          // out of the tab order while the drawer is collapsed — Lighthouse's
+          // `aria-hidden-focus` audit would otherwise flag the tab buttons.
+          inert={!helpOpen}
           className={`absolute bottom-0 right-0 top-0 z-20 w-full max-w-sm transform border-l border-border bg-surface px-4 py-6 shadow-2xl transition-transform duration-200 ease-out sm:px-6 ${
             helpOpen ? 'translate-x-0' : 'pointer-events-none translate-x-full'
           }`}
