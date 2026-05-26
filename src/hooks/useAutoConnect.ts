@@ -7,7 +7,7 @@ import { isSimEnabled, simSelectPort } from '../lib/sim'
 import type { FlasherState } from './useFlasher'
 
 /** True when the port's USB IDs match one of the allowed bridges. */
-function isSupportedPort(port: SerialPort): boolean {
+const isSupportedPort = (port: SerialPort): boolean => {
   const info = port.getInfo()
   return SUPPORTED_USB_FILTERS.some(
     (filter) =>
@@ -15,7 +15,7 @@ function isSupportedPort(port: SerialPort): boolean {
   )
 }
 
-async function findSingleSupportedPort(): Promise<SerialPort | null> {
+const findSingleSupportedPort = async (): Promise<SerialPort | null> => {
   const ports = await navigator.serial.getPorts()
   const supported = ports.filter(isSupportedPort)
   return supported.length === 1 ? (supported[0] ?? null) : null
@@ -41,7 +41,7 @@ export interface UseAutoConnectOptions {
  * the handlers read the latest `state` / `port` via refs so the effect
  * doesn't re-attach listeners on every state change.
  */
-export function useAutoConnect(opts: UseAutoConnectOptions): void {
+export const useAutoConnect = (opts: UseAutoConnectOptions): void => {
   const { state, port, onPromoteToReady, onDemoteToIdle } = opts
 
   const stateRef = useRef(state)

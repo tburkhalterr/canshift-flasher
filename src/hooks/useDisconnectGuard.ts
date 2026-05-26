@@ -13,7 +13,7 @@ export interface UseDisconnectGuardResult {
  * Fires `onDisconnect` if the active port vanishes mid-flash. Cleanup on
  * unmount.
  */
-export function useDisconnectGuard(): UseDisconnectGuardResult {
+export const useDisconnectGuard = (): UseDisconnectGuardResult => {
   const handlerRef = useRef<((event: Event) => void) | null>(null)
 
   const detach = useCallback(() => {

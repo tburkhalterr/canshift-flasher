@@ -16,7 +16,7 @@ export interface UseLatestReleaseResult {
  * Returns both the reactive value (for rendering) and a ref (so async
  * callbacks can read the current value without forcing rebinding).
  */
-export function useLatestRelease(): UseLatestReleaseResult {
+export const useLatestRelease = (): UseLatestReleaseResult => {
   const [release, setRelease] = useState<Release | null>(null)
   const releaseRef = useRef<Release | null>(null)
 
