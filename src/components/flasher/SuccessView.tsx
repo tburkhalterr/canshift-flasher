@@ -13,6 +13,7 @@ interface SuccessViewProps {
   chipInfo: string | null
   port: SerialPort | null
   release: Release | null
+  logTruncated: boolean
 }
 
 export const SuccessView = ({
@@ -21,6 +22,7 @@ export const SuccessView = ({
   chipInfo,
   port,
   release,
+  logTruncated,
 }: SuccessViewProps): ReactElement => {
   const heading = release ? `Flashed v${release.version} successfully` : 'Flashed successfully'
   return (
@@ -48,7 +50,7 @@ export const SuccessView = ({
           <LogStream log={log} />
           <button
             type="button"
-            onClick={() => downloadLogReport({ log, chipInfo, port, release })}
+            onClick={() => downloadLogReport({ log, chipInfo, port, release, logTruncated })}
             className="text-sm text-text-muted underline-offset-4 hover:underline"
           >
             Download log

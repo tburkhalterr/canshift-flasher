@@ -1,5 +1,5 @@
 // src/hooks/useFlasher.ts
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
   DEFAULT_ADVANCED_OPTIONS,
@@ -35,6 +35,17 @@ const DISCONNECT_DURING_FLASH_MESSAGE =
   'USB connection lost mid-flash — re-plug the dash and click Retry.'
 
 /**
+ * Hard cap on the in-memory log buffer. esptool can emit a few hundred KiB
+ * of progress lines on a verbose stub; without a cap a stuck retry loop
+ * grows the buffer unboundedly and starves React re-renders. 128 KiB is
+ * roughly ~2k lines — plenty for diagnosing a single flash session.
+ */
+export const LOG_BUFFER_CAP_BYTES = 128 * 1024
+
+/** Truncation marker prepended once after the first rotation. */
+const LOG_TRUNCATION_MARKER = '[...truncated]\n'
+
+/**
  * Reset the bits of status that should be cleared each time `flash()` starts:
  * progress trackers, error message, chip info, log. Pure helper to keep the
  * orchestrator readable.
@@ -48,6 +59,7 @@ const initFlashingStatus = (prev: FlasherStatus): FlasherStatus => ({
   spiffsDownloadProgress: null,
   flashProgress: null,
   log: '',
+  logTruncated: false,
 })
 
 /**
@@ -88,6 +100,8 @@ export interface FlasherStatus {
   spiffsDownloadProgress: FirmwareDownloadProgress | null
   flashProgress: FlashProgress | null
   log: string
+  /** True once the in-memory log buffer hit its cap and was rotated. */
+  logTruncated: boolean
   release: Release | null
   advanced: AdvancedOptions
 }
@@ -101,6 +115,7 @@ const INITIAL_STATUS: FlasherStatus = {
   spiffsDownloadProgress: null,
   flashProgress: null,
   log: '',
+  logTruncated: false,
   release: null,
   advanced: DEFAULT_ADVANCED_OPTIONS,
 }
@@ -119,6 +134,9 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
   const [status, setStatus] = useState<FlasherStatus>(INITIAL_STATUS)
   const portRef = useRef<SerialPort | null>(null)
   const logBufferRef = useRef<string>('')
+  const logTruncatedRef = useRef<boolean>(false)
+  const logFlushScheduledRef = useRef<boolean>(false)
+  const logFlushHandleRef = useRef<number | null>(null)
   const downloadAbortRef = useRef<AbortController | null>(null)
   // Mirror of `status.advanced` so `flash()` reads the latest power-user
   // options at call time without being recreated on every toggle.
@@ -126,9 +144,55 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
 
   const disconnectGuard = useDisconnectGuard()
 
-  const appendLog = useCallback((line: string) => {
-    logBufferRef.current += line
-    setStatus((prev) => ({ ...prev, log: logBufferRef.current }))
+  const flushLog = useCallback(() => {
+    logFlushScheduledRef.current = false
+    logFlushHandleRef.current = null
+    setStatus((prev) => ({
+      ...prev,
+      log: logBufferRef.current,
+      logTruncated: logTruncatedRef.current,
+    }))
+  }, [])
+
+  const appendLog = useCallback(
+    (line: string) => {
+      // Cap the buffer: when the next append would exceed the cap, drop the
+      // oldest half and prepend the truncation marker once. Subsequent
+      // rotations keep dropping from the middle without re-adding the marker.
+      const projected = logBufferRef.current.length + line.length
+      if (projected > LOG_BUFFER_CAP_BYTES) {
+        const half = Math.floor(LOG_BUFFER_CAP_BYTES / 2)
+        const kept = logBufferRef.current.slice(-half)
+        if (!logTruncatedRef.current) {
+          logBufferRef.current = LOG_TRUNCATION_MARKER + kept
+          logTruncatedRef.current = true
+        } else {
+          logBufferRef.current = kept
+        }
+      }
+      logBufferRef.current += line
+
+      // Coalesce render updates: one `setStatus` per animation frame at most,
+      // so a chatty esptool stream doesn't trigger a re-render per line.
+      if (logFlushScheduledRef.current) return
+      logFlushScheduledRef.current = true
+      if (typeof requestAnimationFrame === 'function') {
+        logFlushHandleRef.current = requestAnimationFrame(flushLog)
+      } else {
+        // jsdom and Node test envs may omit rAF — fall back to a microtask.
+        queueMicrotask(flushLog)
+      }
+    },
+    [flushLog],
+  )
+
+  // Cancel any pending rAF on unmount so we don't flush into a torn-down hook.
+  useEffect(() => {
+    return () => {
+      if (logFlushHandleRef.current !== null && typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(logFlushHandleRef.current)
+      }
+    }
   }, [])
 
   const selectPort = useCallback(async () => {
@@ -154,6 +218,7 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
     disconnectGuard.detach()
     portRef.current = null
     logBufferRef.current = ''
+    logTruncatedRef.current = false
     // Preserve the resolved release across reset — it was fetched once on
     // mount and re-fetching on every "Flash again" would just hit the rate
     // limit for no UX benefit. Also preserve advanced options so power-users
@@ -183,6 +248,7 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
     }
 
     logBufferRef.current = ''
+    logTruncatedRef.current = false
     setStatus(initFlashingStatus)
 
     if (isSimEnabled()) {
@@ -306,6 +372,7 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
       if (err instanceof DOMException && err.name === 'AbortError') {
         portRef.current = null
         logBufferRef.current = ''
+        logTruncatedRef.current = false
         setStatus((prev) => ({
           ...INITIAL_STATUS,
           release: prev.release,
