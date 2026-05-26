@@ -17,11 +17,8 @@ interface IdleViewProps {
 export const IdleView = ({ onConnect, errorMessage, release }: IdleViewProps): ReactElement => {
   return (
     <section className="space-y-6">
-      <div className="flex flex-col items-center gap-3">
+      <div className="flex justify-center">
         <DashIllustration variant="idle" />
-        <p className="text-sm leading-relaxed text-text-dim">
-          Plug your dash in via USB to begin.
-        </p>
       </div>
 
       <div className="space-y-2">
