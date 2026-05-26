@@ -11,20 +11,31 @@ const TOPIC_TITLES: readonly string[] = [
 ]
 
 test.describe('HelpZone troubleshooting section', () => {
-  test('renders all 6 topic titles plus issues link', async ({ page }) => {
-    // No sim mode needed — HelpZone is always rendered under the flasher card.
+  test('opens from the side drawer and reveals content on click', async ({ page }) => {
     await page.goto('/')
+
+    // Drawer is closed by default — only the "Open help" handle is shown.
+    await page.getByRole('button', { name: 'Open troubleshooting help' }).click()
 
     const helpZone = page.getByRole('region', { name: 'Troubleshooting' })
     await expect(helpZone).toBeVisible()
 
     for (const title of TOPIC_TITLES) {
-      await expect(
-        helpZone.getByRole('heading', { name: title, level: 3 }),
-      ).toBeVisible()
+      await expect(helpZone.getByRole('tab', { name: title })).toBeVisible()
+      // Panels are collapsed by default — keeps the zone short.
+      await expect(helpZone.getByRole('heading', { name: title, level: 3 })).toHaveCount(0)
     }
 
-    // "Need more help?" link → tburkhalterr/canshift-flasher issues.
+    const firstTab = helpZone.getByRole('tab', { name: TOPIC_TITLES[0] })
+    await firstTab.click()
+    await expect(firstTab).toHaveAttribute('aria-selected', 'true')
+    await expect(helpZone.getByRole('heading', { name: TOPIC_TITLES[0], level: 3 })).toBeVisible()
+
+    // Clicking the same tab again collapses the panel.
+    await firstTab.click()
+    await expect(firstTab).toHaveAttribute('aria-selected', 'false')
+    await expect(helpZone.getByRole('heading', { name: TOPIC_TITLES[0], level: 3 })).toHaveCount(0)
+
     const issuesLink = helpZone.getByRole('link', { name: 'tburkhalterr/canshift-flasher' })
     await expect(issuesLink).toBeVisible()
     await expect(issuesLink).toHaveAttribute(

@@ -1,9 +1,11 @@
 // src/components/HelpZone.tsx
+import { useState } from 'react'
 import type { ReactElement, ReactNode } from 'react'
 
 import { DASH_AP_SSID, DASH_HOSTNAME } from '../constants'
 
 interface Topic {
+  id: string
   question: string
   icon: ReactElement
   answer: ReactNode
@@ -11,6 +13,24 @@ interface Topic {
 
 // Inline SVG icons — no external icon library, CSP-friendly. All 16px square,
 // `currentColor` so parent text colour drives the stroke/fill.
+
+const CloseIcon = (): ReactElement => (
+  <svg
+    aria-hidden="true"
+    focusable="false"
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+)
 
 const HelpIcon = (): ReactElement => (
   <svg
@@ -144,6 +164,7 @@ const ShieldIcon = (): ReactElement => (
 
 const TOPICS: readonly Topic[] = [
   {
+    id: 'no-port',
     question: 'No port shown when I click Connect',
     icon: <UsbIcon />,
     answer: (
@@ -161,6 +182,7 @@ const TOPICS: readonly Topic[] = [
     ),
   },
   {
+    id: 'flash-id-ffffff',
     question: '"Flash ID is ffffff"',
     icon: <ChipIcon />,
     answer: (
@@ -172,6 +194,7 @@ const TOPICS: readonly Topic[] = [
     ),
   },
   {
+    id: 'enter-bootloader',
     question: '"Could not enter ESP32 bootloader"',
     icon: <RestartIcon />,
     answer: (
@@ -183,6 +206,7 @@ const TOPICS: readonly Topic[] = [
     ),
   },
   {
+    id: 'no-boot',
     question: "Flash succeeds but ESP32 doesn't boot",
     icon: <PowerIcon />,
     answer: (
@@ -200,6 +224,7 @@ const TOPICS: readonly Topic[] = [
     ),
   },
   {
+    id: 'browser-unsupported',
     question: 'Browser says "not supported"',
     icon: <BrowserIcon />,
     answer: (
@@ -210,6 +235,7 @@ const TOPICS: readonly Topic[] = [
     ),
   },
   {
+    id: 'sha-mismatch',
     question: '"SHA-256 mismatch"',
     icon: <ShieldIcon />,
     answer: (
@@ -221,47 +247,91 @@ const TOPICS: readonly Topic[] = [
   },
 ] as const
 
-export const HelpZone = (): ReactElement => (
-  <section
-    aria-labelledby="help-zone-title"
-    className="mt-2 rounded-md border border-border bg-surface px-4 py-4 text-sm text-text-dim"
-  >
-    <h2
-      id="help-zone-title"
-      className="flex items-center gap-2 font-display text-sm uppercase tracking-[0.15em] text-text"
+interface HelpZoneProps {
+  onClose?: () => void
+}
+
+export const HelpZone = ({ onClose }: HelpZoneProps = {}): ReactElement => {
+  const [openTopic, setOpenTopic] = useState<string | null>(null)
+  const activeTopic = TOPICS.find((topic) => topic.question === openTopic) ?? null
+
+  return (
+    <section
+      aria-labelledby="help-zone-title"
+      className="text-sm text-text-dim"
     >
-      <HelpIcon />
-      Troubleshooting
-    </h2>
-
-    <div className="mt-4 space-y-3 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
-      {TOPICS.map((topic) => (
-        <div
-          key={topic.question}
-          className="rounded-sm border border-border bg-surface-2 px-3 py-2"
+      <div className="flex items-center justify-between">
+        <h2
+          id="help-zone-title"
+          className="flex items-center gap-2 font-display text-sm uppercase tracking-[0.15em] text-text"
         >
-          <h3 className="flex items-center gap-2 text-text">
-            <span aria-hidden="true" className="text-status-danger">
-              {topic.icon}
-            </span>
-            {topic.question}
-          </h3>
-          <div className="mt-2 text-text-dim">{topic.answer}</div>
-        </div>
-      ))}
-    </div>
+          <HelpIcon />
+          Troubleshooting
+        </h2>
+        {onClose ? (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close help"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-surface-2 hover:text-text focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            <CloseIcon />
+          </button>
+        ) : null}
+      </div>
 
-    <p className="mt-4 text-text-muted">
-      Need more help? Open an issue on{' '}
-      <a
-        href="https://github.com/tburkhalterr/canshift-flasher/issues"
-        target="_blank"
-        rel="noreferrer"
-        className="underline-offset-4 hover:underline"
-      >
-        tburkhalterr/canshift-flasher
-      </a>
-      .
-    </p>
-  </section>
-)
+      <div role="tablist" aria-label="Troubleshooting topics" className="mt-4 flex flex-wrap gap-2">
+        {TOPICS.map((topic) => {
+          const isActive = topic.question === openTopic
+          const panelId = `help-panel-${topic.id}`
+          const tabId = `help-tab-${topic.id}`
+          return (
+            <button
+              key={topic.id}
+              id={tabId}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              aria-controls={panelId}
+              aria-label={topic.question}
+              title={topic.question}
+              onClick={() => setOpenTopic(isActive ? null : topic.question)}
+              className={`flex h-10 w-10 items-center justify-center rounded-sm border transition-colors ${
+                isActive
+                  ? 'border-status-danger bg-surface-2 text-status-danger'
+                  : 'border-border bg-surface-2 text-text-dim hover:border-status-danger hover:text-status-danger'
+              }`}
+            >
+              {topic.icon}
+            </button>
+          )
+        })}
+      </div>
+
+      {activeTopic ? (
+        <div
+          id={`help-panel-${activeTopic.id}`}
+          role="tabpanel"
+          aria-labelledby={`help-tab-${activeTopic.id}`}
+          className="mt-3 rounded-sm border border-border bg-surface-2 px-3 py-3"
+        >
+          <h3 className="text-text">{activeTopic.question}</h3>
+          <div className="mt-2 text-text-dim">{activeTopic.answer}</div>
+        </div>
+      ) : null}
+
+      <p className="mt-4 text-text-muted">
+        Need more help? Open an issue on{' '}
+        <a
+          href="https://github.com/tburkhalterr/canshift-flasher/issues"
+          target="_blank"
+          rel="noreferrer"
+          className="underline-offset-4 hover:underline"
+        >
+          tburkhalterr/canshift-flasher
+        </a>
+        .
+      </p>
+    </section>
+  )
+}

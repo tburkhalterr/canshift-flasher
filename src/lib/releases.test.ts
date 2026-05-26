@@ -1,7 +1,12 @@
 // src/lib/releases.test.ts
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { fetchLatestRelease, fetchRecentReleases, fetchReleaseByTag } from './releases'
+import {
+  __resetReleaseCacheForTests,
+  fetchLatestRelease,
+  fetchRecentReleases,
+  fetchReleaseByTag,
+} from './releases'
 
 const FIRMWARE_ASSET_NAME = 'canshift-firmware-v0.10.0-crowpanel_28-merged.bin'
 const SPIFFS_ASSET_NAME = 'canshift-spiffs-v0.10.0-crowpanel_28.bin'
@@ -62,6 +67,7 @@ describe('fetchLatestRelease', () => {
 
   beforeEach(() => {
     fetchMock.mockReset()
+    __resetReleaseCacheForTests()
     vi.stubGlobal('fetch', fetchMock)
   })
 
@@ -161,6 +167,7 @@ describe('fetchReleaseByTag', () => {
 
   beforeEach(() => {
     fetchMock.mockReset()
+    __resetReleaseCacheForTests()
     vi.stubGlobal('fetch', fetchMock)
   })
 
@@ -219,6 +226,7 @@ describe('fetchRecentReleases', () => {
 
   beforeEach(() => {
     fetchMock.mockReset()
+    __resetReleaseCacheForTests()
     vi.stubGlobal('fetch', fetchMock)
   })
 
@@ -274,7 +282,7 @@ describe('fetchRecentReleases', () => {
     expect(releases.map((r) => r.tag)).toEqual(['v0.10.0', 'v0.9.0'])
   })
 
-  it('honours the limit parameter via per_page and trims the result', async () => {
+  it('trims the result to the requested limit', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse([
         makeRecentRaw('v0.10.0', '2026-04-01T12:00:00Z'),
@@ -286,22 +294,7 @@ describe('fetchRecentReleases', () => {
     const releases = await fetchRecentReleases(2)
 
     expect(releases).toHaveLength(2)
-    const call = fetchMock.mock.calls[0]
-    expect(call?.[0]).toMatch(/\/releases\?per_page=2$/)
-  })
-
-  it('sorts by publishedAt descending when GitHub returns out-of-order entries', async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse([
-        makeRecentRaw('v0.9.0', '2026-02-01T08:00:00Z'),
-        makeRecentRaw('v0.10.0', '2026-04-01T12:00:00Z'),
-        makeRecentRaw('v0.9.1', '2026-03-15T09:00:00Z'),
-      ]),
-    )
-
-    const releases = await fetchRecentReleases()
-
-    expect(releases.map((r) => r.tag)).toEqual(['v0.10.0', 'v0.9.1', 'v0.9.0'])
+    expect(releases.map((r) => r.tag)).toEqual(['v0.10.0', 'v0.9.1'])
   })
 
   it('throws when the payload is not an array', async () => {

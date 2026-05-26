@@ -12,6 +12,7 @@ const makeRelease = (overrides: Partial<Release> = {}): Release => ({
   tag: 'v1.2.3',
   publishedAt: '2026-01-01T00:00:00Z',
   notes: 'test notes',
+  prerelease: false,
   firmwareAsset: null,
   spiffsAsset: null,
   htmlUrl: 'https://example.test/release',
@@ -44,33 +45,17 @@ describe('useLatestRelease', () => {
     expect(result.current.releaseRef.current).toEqual(release)
   })
 
-  it('leaves release and releaseRef null and logs a warning when fetch rejects', async () => {
+  it('leaves release and releaseRef null when fetch rejects without warning the console', async () => {
     vi.spyOn(releases, 'fetchLatestRelease').mockRejectedValue(new Error('network down'))
 
     const { result } = renderHook(() => useLatestRelease())
 
-    await waitFor(() => {
-      expect(warnSpy).toHaveBeenCalled()
-    })
+    // Give the rejection a chance to settle.
+    await new Promise((resolve) => setTimeout(resolve, 50))
     expect(result.current.release).toBeNull()
     expect(result.current.releaseRef.current).toBeNull()
-    expect(warnSpy).toHaveBeenCalledWith(
-      'Failed to fetch latest release metadata:',
-      'network down',
-    )
-  })
-
-  it('coerces non-Error rejections to a string in the warning', async () => {
-    vi.spyOn(releases, 'fetchLatestRelease').mockRejectedValue('plain string failure')
-
-    renderHook(() => useLatestRelease())
-
-    await waitFor(() => {
-      expect(warnSpy).toHaveBeenCalledWith(
-        'Failed to fetch latest release metadata:',
-        'plain string failure',
-      )
-    })
+    // The hook swallows the error — the UI (ChannelPicker) is what shows it.
+    expect(warnSpy).not.toHaveBeenCalled()
   })
 
   it('does not setState after unmount when the fetch resolves late', async () => {

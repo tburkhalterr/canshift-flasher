@@ -11,7 +11,6 @@ import { ReadyView } from './flasher/ReadyView'
 import { SimBadge } from './flasher/SimBadge'
 import { SuccessView } from './flasher/SuccessView'
 import { UnsupportedBrowser } from './flasher/UnsupportedBrowser'
-import { HelpZone } from './HelpZone'
 import { StepGuide } from './StepGuide'
 
 interface FlasherProps {
@@ -26,6 +25,10 @@ const renderStateView = (flasher: ReturnType<typeof useFlasher>): ReactElement =
           onConnect={flasher.selectPort}
           errorMessage={flasher.errorMessage}
           release={flasher.release}
+          advanced={flasher.advanced}
+          onAdvancedChange={flasher.setAdvanced}
+          localFirmware={flasher.localFirmware}
+          onLocalFirmwareChange={flasher.setLocalFirmware}
         />
       )
     case 'ready':
@@ -91,7 +94,6 @@ export const Flasher = ({ webSerialSupported }: FlasherProps): ReactElement => {
         <StepGuide state={flasher.state} />
         <div className="md:border-l md:border-border md:pl-6">{renderStateView(flasher)}</div>
       </div>
-      <HelpZone />
     </div>
   )
 }

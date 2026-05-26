@@ -46,6 +46,7 @@ export interface Release {
   tag: string
   publishedAt: string
   notes: string
+  prerelease: boolean
   firmwareAsset: ReleaseAsset | null
   spiffsAsset: ReleaseAsset | null
   htmlUrl: string
@@ -60,6 +61,21 @@ export interface RecentRelease {
   tag: string
   publishedAt: string
   prerelease: boolean
+}
+
+/** Update channel — drives default version selection. */
+export type Channel = 'stable' | 'beta'
+
+/** Default channel from URL flag, kept for back-compat with `?prerelease=1`. */
+export const readDefaultChannel = (): Channel => {
+  if (typeof window === 'undefined') return 'stable'
+  try {
+    return new URLSearchParams(window.location.search).get('prerelease') === '1'
+      ? 'beta'
+      : 'stable'
+  } catch {
+    return 'stable'
+  }
 }
 
 interface GitHubAsset {
@@ -117,9 +133,74 @@ function toRelease(raw: GitHubRelease): Release {
     tag: raw.tag_name,
     publishedAt: raw.published_at,
     notes: raw.body ?? '',
+    prerelease: raw.prerelease,
     firmwareAsset: firmware ? toReleaseAsset(firmware) : null,
     spiffsAsset: spiffs ? toReleaseAsset(spiffs) : null,
     htmlUrl: raw.html_url,
+  }
+}
+
+/**
+ * Module-level cache for the recent-releases fetch — `useLatestRelease` and
+ * `useReleaseChannel` both need this list, and React Strict Mode in dev
+ * double-invokes effects, so without dedup we burn 4× the GitHub anon
+ * rate-limit budget (60 req/h) on every page load. Cleared on failure so
+ * the next caller can retry.
+ */
+let cachedRecentPromise: Promise<RecentRelease[]> | null = null
+let cachedFullPromise: Promise<Release[]> | null = null
+
+/**
+ * `localStorage` persistence layer on top of the in-memory cache. Survives page
+ * reloads so a rate-limited browser still has fresh-enough release data to
+ * render the UI. Stale-while-revalidate: a cached entry is returned immediately
+ * even past its TTL, and a background refresh updates the cache for next time.
+ */
+const LS_CACHE_KEY = 'canshift-flasher.releases.v1'
+/** 10 minutes — short enough that a release ships quickly, long enough to
+ *  shield casual reloads from the 60 req/h anon rate limit. */
+const LS_CACHE_TTL_MS = 10 * 60 * 1000
+
+interface PersistedCache {
+  fetchedAt: number
+  releases: Release[]
+}
+
+const readPersistedCache = (): PersistedCache | null => {
+  if (typeof localStorage === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(LS_CACHE_KEY)
+    if (raw === null) return null
+    const parsed = JSON.parse(raw) as unknown
+    if (typeof parsed !== 'object' || parsed === null) return null
+    const obj = parsed as Record<string, unknown>
+    if (typeof obj.fetchedAt !== 'number' || !Array.isArray(obj.releases)) return null
+    return { fetchedAt: obj.fetchedAt, releases: obj.releases as Release[] }
+  } catch {
+    return null
+  }
+}
+
+const writePersistedCache = (releases: Release[]): void => {
+  if (typeof localStorage === 'undefined') return
+  try {
+    const payload: PersistedCache = { fetchedAt: Date.now(), releases }
+    localStorage.setItem(LS_CACHE_KEY, JSON.stringify(payload))
+  } catch {
+    // Quota / private-mode failures are non-fatal — in-memory cache still works.
+  }
+}
+
+/** Clears module-level + persistent fetch caches. Used by tests to start clean. */
+export const __resetReleaseCacheForTests = (): void => {
+  cachedRecentPromise = null
+  cachedFullPromise = null
+  if (typeof localStorage !== 'undefined') {
+    try {
+      localStorage.removeItem(LS_CACHE_KEY)
+    } catch {
+      /* ignore */
+    }
   }
 }
 
@@ -151,32 +232,54 @@ const fetchJsonWithTimeout = async (url: string): Promise<unknown> => {
  * 404 on every page load. Picking the right candidate from a 20-item list
  * is cheap. Default flow prefers stable; `?prerelease=1` prefers prereleases.
  */
-export const fetchLatestRelease = async (): Promise<Release> => {
+const fetchFromNetwork = async (): Promise<Release[]> => {
   const url = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=20`
   const payload = await fetchJsonWithTimeout(url)
   if (!Array.isArray(payload)) {
     throw new Error('GitHub API: expected an array of releases')
   }
-  const releases = payload.filter(isRelease)
+  const releases = payload.filter(isRelease).map(toRelease)
+  writePersistedCache(releases)
+  return releases
+}
+
+const fetchAllReleases = (): Promise<Release[]> => {
+  if (cachedFullPromise) return cachedFullPromise
+
+  const persisted = readPersistedCache()
+  const isFresh = persisted !== null && Date.now() - persisted.fetchedAt < LS_CACHE_TTL_MS
+
+  if (persisted && isFresh) {
+    // Fresh hit: skip the network entirely.
+    cachedFullPromise = Promise.resolve(persisted.releases)
+    return cachedFullPromise
+  }
+
+  const networkPromise = (async (): Promise<Release[]> => {
+    try {
+      return await fetchFromNetwork()
+    } catch (err) {
+      // Stale-while-revalidate: if the API is unreachable but we have any
+      // cached data (even past TTL), fall back to it instead of bubbling
+      // the error — the UI was rendering it anyway.
+      if (persisted) return persisted.releases
+      cachedFullPromise = null
+      throw err
+    }
+  })()
+  cachedFullPromise = networkPromise
+  return networkPromise
+}
+
+export const fetchLatestRelease = async (): Promise<Release> => {
+  const releases = await fetchAllReleases()
   const candidate = INCLUDE_PRERELEASE
     ? (releases.find((r) => r.prerelease) ?? releases[0])
     : (releases.find((r) => !r.prerelease) ?? releases[0])
   if (!candidate) {
     throw new Error('GitHub API: no releases available')
   }
-  return toRelease(candidate)
-}
-
-function isRecentReleaseRaw(
-  v: unknown,
-): v is { tag_name: string; published_at: string; prerelease: boolean } {
-  if (typeof v !== 'object' || v === null) return false
-  const r = v as Record<string, unknown>
-  return (
-    typeof r.tag_name === 'string' &&
-    typeof r.published_at === 'string' &&
-    typeof r.prerelease === 'boolean'
-  )
+  return candidate
 }
 
 /**
@@ -187,24 +290,41 @@ function isRecentReleaseRaw(
  * bad release row doesn't blank out the whole picker. Network / HTTP failures
  * still throw — the UI handles them by falling back to the typed-text input.
  */
+const toRecentRelease = (release: Release): RecentRelease => ({
+  tag: release.tag,
+  publishedAt: release.publishedAt,
+  prerelease: release.prerelease,
+})
+
+/**
+ * Filters the cached release list by channel — `stable` excludes pre-releases,
+ * `beta` keeps only pre-releases. Drives the IdleView channel/version picker.
+ */
+export const fetchReleasesByChannel = async (
+  channel: Channel,
+  limit = 10,
+): Promise<RecentRelease[]> => {
+  const all = await fetchAllReleases()
+  const filtered = all
+    .filter((r) => (channel === 'beta' ? r.prerelease : !r.prerelease))
+    .map(toRecentRelease)
+  return filtered.slice(0, limit)
+}
+
 export const fetchRecentReleases = async (limit = 10): Promise<RecentRelease[]> => {
-  const url = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=${String(limit)}`
-  const payload = await fetchJsonWithTimeout(url)
-  if (!Array.isArray(payload)) {
-    throw new Error('GitHub API: expected an array of releases')
+  if (!cachedRecentPromise) {
+    cachedRecentPromise = (async (): Promise<RecentRelease[]> => {
+      try {
+        const releases = await fetchAllReleases()
+        return releases.map(toRecentRelease)
+      } catch (err) {
+        cachedRecentPromise = null
+        throw err
+      }
+    })()
   }
-  const mapped: RecentRelease[] = []
-  for (const entry of payload) {
-    if (!isRecentReleaseRaw(entry)) continue
-    mapped.push({
-      tag: entry.tag_name,
-      publishedAt: entry.published_at,
-      prerelease: entry.prerelease,
-    })
-  }
-  // GitHub already returns newest-first, but tolerate API drift.
-  mapped.sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
-  return mapped.slice(0, limit)
+  const cached = await cachedRecentPromise
+  return cached.slice(0, limit)
 }
 
 /**
