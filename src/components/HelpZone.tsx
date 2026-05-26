@@ -1,6 +1,8 @@
 // src/components/HelpZone.tsx
 import type { ReactElement, ReactNode } from 'react'
 
+import { DASH_AP_SSID, DASH_HOSTNAME } from '../constants'
+
 interface Topic {
   question: string
   icon: ReactElement
@@ -187,8 +189,8 @@ const TOPICS: readonly Topic[] = [
       <ul className="list-disc space-y-1 pl-5">
         <li>Unplug for 5 seconds, then re-plug. The dash auto-resets on boot.</li>
         <li>
-          Connect to the <span className="font-mono">CANShift</span> WiFi access point and open{' '}
-          <span className="font-mono">canshift.local</span> in your browser.
+          Connect to the <span className="font-mono">{DASH_AP_SSID}</span> WiFi access point and
+          open <span className="font-mono">{DASH_HOSTNAME}</span> in your browser.
         </li>
         <li>
           If the access point never appears, re-flash — the SPIFFS partition may not have been

@@ -1,6 +1,7 @@
 // src/components/flasher/SuccessView.tsx
 import type { ReactElement } from 'react'
 
+import { DASH_AP_SSID, DASH_HOSTNAME } from '../../constants'
 import type { Release } from '../../lib/releases'
 import { LogStream } from '../LogStream'
 
@@ -29,8 +30,8 @@ export const SuccessView = ({
         <h2 className="font-display text-lg font-bold tracking-wide text-success">{heading}</h2>
         <p className="text-sm leading-relaxed text-text-dim">
           Your dash now hosts Studio at{' '}
-          <span className="font-mono text-text">canshift.local</span>. Connect to the CANShift
-          WiFi access point and open that URL in your browser.
+          <span className="font-mono text-text">{DASH_HOSTNAME}</span>. Connect to the{' '}
+          {DASH_AP_SSID} WiFi access point and open that URL in your browser.
         </p>
         <p className="text-sm leading-relaxed text-text-muted">
           This flow also covers normal updates and recovery from a broken update — bookmark{' '}
