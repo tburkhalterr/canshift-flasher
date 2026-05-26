@@ -1,10 +1,10 @@
 // src/lib/esptool.ts
-import {
+import type {
   ESPLoader,
   Transport,
-  type FlashOptions,
-  type IEspLoaderTerminal,
-  type LoaderOptions,
+  FlashOptions,
+  IEspLoaderTerminal,
+  LoaderOptions,
 } from 'esptool-js'
 
 import { FLASH_BAUD, MERGED_FLASH_OFFSET, SPIFFS_FLASH_OFFSET } from '../constants'
@@ -15,6 +15,21 @@ import {
   runResetSequence,
   type ResetVariant,
 } from './reset'
+
+let esptoolModulePromise: Promise<typeof import('esptool-js')> | null = null
+
+/**
+ * Memoised dynamic import of `esptool-js`. Keeps the ~150 kB module out of the
+ * initial bundle — Vite/rolldown splits it into its own chunk fetched on the
+ * first flash. Subsequent flash attempts (or reset variants) reuse the same
+ * promise so the chunk is only fetched once per page.
+ */
+function loadEsptool(): Promise<typeof import('esptool-js')> {
+  if (!esptoolModulePromise) {
+    esptoolModulePromise = import('esptool-js')
+  }
+  return esptoolModulePromise
+}
 
 export interface FlashProgress {
   written: number
@@ -89,6 +104,7 @@ async function attemptBootloaderEntry(
     },
   }
 
+  const { ESPLoader, Transport } = await loadEsptool()
   const transport = new Transport(port, /* tracing */ false)
   const loaderOptions: LoaderOptions = {
     transport,
