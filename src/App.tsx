@@ -38,7 +38,7 @@ export function App(): ReactElement {
         <GithubIcon />
       </a>
 
-      <main className="mx-auto flex min-h-full w-full max-w-2xl flex-col items-center gap-8 px-4 py-12 sm:px-6">
+      <main className="mx-auto flex min-h-full w-full max-w-2xl md:max-w-4xl flex-col items-center gap-8 px-4 py-12 sm:px-6">
         <header className="flex flex-col items-center gap-3">
           <CanshiftLogo />
           <p className="font-display text-xs uppercase tracking-[0.18em] text-text-muted">
