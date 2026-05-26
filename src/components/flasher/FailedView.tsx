@@ -4,6 +4,7 @@ import type { ReactElement } from 'react'
 import type { Release } from '../../lib/releases'
 import { LogStream } from '../LogStream'
 
+import { DashIllustration } from './illustrations/DashIllustration'
 import { downloadLogReport } from './log-report'
 import {
   PRIMARY_CTA_CLASSES,
@@ -34,6 +35,10 @@ export const FailedView = ({
 }: FailedViewProps): ReactElement => {
   return (
     <section className="space-y-6">
+      <div className="flex justify-center">
+        <DashIllustration variant="failed" />
+      </div>
+
       <div className="space-y-2 rounded-md border border-status-danger/60 bg-status-danger-dim px-4 py-4">
         <h2 className={SECTION_HEADER_CLASSES}>Flash failed</h2>
         <p className="font-mono text-sm text-text-dim">{errorMessage ?? 'Unknown error'}</p>
