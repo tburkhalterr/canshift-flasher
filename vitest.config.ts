@@ -19,8 +19,9 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     // Exclude Claude tooling worktrees so parallel work doesn't double-count
-    // tests at the project root.
-    exclude: ['node_modules', 'dist', '.claude/**'],
+    // tests at the project root. `tests/e2e` is Playwright-only; vitest would
+    // try to load it and crash on `test.describe()` outside the Playwright runner.
+    exclude: ['node_modules', 'dist', '.claude/**', 'tests/e2e/**'],
     css: false,
     coverage: {
       provider: 'v8',

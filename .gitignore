@@ -16,3 +16,5 @@ coverage
 tsconfig.tsbuildinfo
 *.tsbuildinfo
 .claude/
+playwright-report/
+test-results/
