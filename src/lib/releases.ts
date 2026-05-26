@@ -51,6 +51,17 @@ export interface Release {
   htmlUrl: string
 }
 
+/**
+ * Trimmed release metadata used by the Advanced (recovery) panel's version
+ * override dropdown — just enough to render the option label and feed
+ * `versionOverride` back to `useFlasher`.
+ */
+export interface RecentRelease {
+  tag: string
+  publishedAt: string
+  prerelease: boolean
+}
+
 interface GitHubAsset {
   name: string
   browser_download_url: string
@@ -154,6 +165,46 @@ export const fetchLatestRelease = async (): Promise<Release> => {
     throw new Error('GitHub API: no releases available')
   }
   return toRelease(candidate)
+}
+
+function isRecentReleaseRaw(
+  v: unknown,
+): v is { tag_name: string; published_at: string; prerelease: boolean } {
+  if (typeof v !== 'object' || v === null) return false
+  const r = v as Record<string, unknown>
+  return (
+    typeof r.tag_name === 'string' &&
+    typeof r.published_at === 'string' &&
+    typeof r.prerelease === 'boolean'
+  )
+}
+
+/**
+ * Fetches the N most-recent releases (default 10) for the version-override
+ * dropdown in the Advanced (recovery) panel.
+ *
+ * Best-effort by design: malformed entries are silently skipped so a single
+ * bad release row doesn't blank out the whole picker. Network / HTTP failures
+ * still throw — the UI handles them by falling back to the typed-text input.
+ */
+export const fetchRecentReleases = async (limit = 10): Promise<RecentRelease[]> => {
+  const url = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=${String(limit)}`
+  const payload = await fetchJsonWithTimeout(url)
+  if (!Array.isArray(payload)) {
+    throw new Error('GitHub API: expected an array of releases')
+  }
+  const mapped: RecentRelease[] = []
+  for (const entry of payload) {
+    if (!isRecentReleaseRaw(entry)) continue
+    mapped.push({
+      tag: entry.tag_name,
+      publishedAt: entry.published_at,
+      prerelease: entry.prerelease,
+    })
+  }
+  // GitHub already returns newest-first, but tolerate API drift.
+  mapped.sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
+  return mapped.slice(0, limit)
 }
 
 /**
