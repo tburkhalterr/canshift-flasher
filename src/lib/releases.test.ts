@@ -16,7 +16,7 @@ interface ReleasePayloadOverrides {
   withSpiffs?: boolean
 }
 
-function makeReleasePayload(overrides: ReleasePayloadOverrides = {}): unknown {
+const makeReleasePayload = (overrides: ReleasePayloadOverrides = {}): unknown => {
   const {
     tag_name = 'v0.10.0',
     prerelease = false,
@@ -49,14 +49,13 @@ function makeReleasePayload(overrides: ReleasePayloadOverrides = {}): unknown {
   }
 }
 
-function jsonResponse(payload: unknown, status = 200): Response {
-  return {
+const jsonResponse = (payload: unknown, status = 200): Response =>
+  ({
     ok: status >= 200 && status < 300,
     status,
     statusText: status === 404 ? 'Not Found' : status === 500 ? 'Server Error' : 'OK',
     json: () => Promise.resolve(payload),
-  } as unknown as Response
-}
+  }) as unknown as Response
 
 describe('fetchLatestRelease', () => {
   const fetchMock = vi.fn<typeof fetch>()
@@ -70,8 +69,8 @@ describe('fetchLatestRelease', () => {
     vi.unstubAllGlobals()
   })
 
-  it('parses a well-formed /releases/latest response and maps firmware + SPIFFS assets', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse(makeReleasePayload()))
+  it('parses /releases and maps firmware + SPIFFS assets from the first stable entry', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse([makeReleasePayload()]))
 
     const release = await fetchLatestRelease()
 
@@ -89,42 +88,59 @@ describe('fetchLatestRelease', () => {
       sizeBytes: 524_288,
       sha256Url: `${SPIFFS_URL}.sha256`,
     })
-    // First call must hit /releases/latest, not the list endpoint.
+    // Always hits /releases, never /releases/latest — keeps the console clean
+    // on prerelease-only repos.
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const firstCall = fetchMock.mock.calls[0]
-    expect(firstCall?.[0]).toMatch(/\/releases\/latest$/)
+    expect(firstCall?.[0]).toMatch(/\/releases\?per_page=20$/)
   })
 
-  it('falls back to /releases when /releases/latest returns 404', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse({}, 404))
+  it('prefers stable over prerelease when both exist', async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse([makeReleasePayload({ tag_name: 'v0.9.5' }), makeReleasePayload()]),
+      jsonResponse([
+        makeReleasePayload({ tag_name: 'v0.10.1', prerelease: true }),
+        makeReleasePayload({ tag_name: 'v0.10.0', prerelease: false }),
+      ]),
     )
 
     const release = await fetchLatestRelease()
-
-    expect(release.tag).toBe('v0.9.5')
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    const secondCall = fetchMock.mock.calls[1]
-    expect(secondCall?.[0]).toMatch(/\/releases\?per_page=20$/)
+    expect(release.tag).toBe('v0.10.0')
   })
 
-  it('throws when /releases/latest returns 200 with a malformed payload', async () => {
+  it('falls back to the first item when no stable release exists', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([
+        makeReleasePayload({ tag_name: 'v0.10.0', prerelease: true }),
+        makeReleasePayload({ tag_name: 'v0.9.5', prerelease: true }),
+      ]),
+    )
+
+    const release = await fetchLatestRelease()
+    expect(release.tag).toBe('v0.10.0')
+  })
+
+  it('throws when /releases returns 200 with a non-array payload', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ wrong: 'shape' }))
 
-    await expect(fetchLatestRelease()).rejects.toThrow(/malformed/i)
+    await expect(fetchLatestRelease()).rejects.toThrow(/expected an array/i)
   })
 
-  it('bubbles up non-404 HTTP errors without falling back', async () => {
+  it('throws on non-2xx HTTP errors', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({}, 500))
 
     await expect(fetchLatestRelease()).rejects.toThrow(/HTTP 500/)
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('throws when the array is empty', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse([]))
+
+    await expect(fetchLatestRelease()).rejects.toThrow(/no releases available/i)
+  })
+
   it('omits firmware/SPIFFS when the release has no matching assets', async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse(makeReleasePayload({ withFirmware: false, withSpiffs: false })),
+      jsonResponse([makeReleasePayload({ withFirmware: false, withSpiffs: false })]),
     )
 
     const release = await fetchLatestRelease()
@@ -133,7 +149,7 @@ describe('fetchLatestRelease', () => {
   })
 
   it('renders an empty notes string when body is null', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse(makeReleasePayload({ body: null })))
+    fetchMock.mockResolvedValueOnce(jsonResponse([makeReleasePayload({ body: null })]))
 
     const release = await fetchLatestRelease()
     expect(release.notes).toBe('')
