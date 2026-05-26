@@ -1,7 +1,12 @@
 // src/hooks/useFlasher.ts
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { FIRMWARE_URL, SUPPORTED_USB_FILTERS } from '../constants'
+import {
+  DEFAULT_ADVANCED_OPTIONS,
+  FIRMWARE_URL,
+  SUPPORTED_USB_FILTERS,
+  type AdvancedBaudRate,
+} from '../constants'
 import { flashFirmware, type FlashProgress } from '../lib/esptool'
 import {
   downloadFirmware,
@@ -9,8 +14,23 @@ import {
   type FirmwareDownloadProgress,
 } from '../lib/firmware'
 import { verifyFirmwareSha256 } from '../lib/integrity'
-import { fetchLatestRelease, type Release } from '../lib/releases'
+import { fetchLatestRelease, fetchReleaseByTag, type Release } from '../lib/releases'
+import { isSimEnabled, simFlash, simSelectPort } from '../lib/sim'
 import { classifyError, sendTelemetry } from '../lib/telemetry'
+
+/**
+ * Power-user escape hatches surfaced in the Advanced (recovery) panel. These
+ * are session-local — there is no persistence by design. The flasher's
+ * "no version picker" policy stands; this is for support flows only.
+ */
+export interface AdvancedOptions {
+  /** Full chip erase before flash. Default false. */
+  fullErase: boolean
+  /** esptool stub baud rate. Default `FLASH_BAUD` (921_600). */
+  baudRate: AdvancedBaudRate
+  /** Optional version tag override (e.g. `v0.9.1`). Default null = use latest. */
+  versionOverride: string | null
+}
 
 const DISCONNECT_DURING_FLASH_MESSAGE =
   'USB connection lost mid-flash — re-plug the dash and click Retry.'
@@ -43,6 +63,7 @@ export interface FlasherStatus {
   flashProgress: FlashProgress | null
   log: string
   release: Release | null
+  advanced: AdvancedOptions
 }
 
 const INITIAL_STATUS: FlasherStatus = {
@@ -55,6 +76,7 @@ const INITIAL_STATUS: FlasherStatus = {
   flashProgress: null,
   log: '',
   release: null,
+  advanced: DEFAULT_ADVANCED_OPTIONS,
 }
 
 export interface FlasherActions {
@@ -63,6 +85,7 @@ export interface FlasherActions {
   reset: () => void
   reselectPort: () => Promise<void>
   cancel: () => void
+  setAdvanced: (opts: AdvancedOptions) => void
 }
 
 export function useFlasher(): FlasherStatus & FlasherActions {
@@ -75,6 +98,10 @@ export function useFlasher(): FlasherStatus & FlasherActions {
   // the callback (and therefore re-binding the disconnect handler) every
   // time the release fetch settles.
   const releaseRef = useRef<Release | null>(null)
+  // Mirror of `status.advanced` for the same reason — `flash()` reads the
+  // latest power-user options at call time without being recreated on every
+  // toggle.
+  const advancedRef = useRef<AdvancedOptions>(DEFAULT_ADVANCED_OPTIONS)
 
   const detachFlashDisconnectHandler = useCallback(() => {
     const handler = flashDisconnectHandlerRef.current
@@ -90,6 +117,12 @@ export function useFlasher(): FlasherStatus & FlasherActions {
   }, [])
 
   const selectPort = useCallback(async () => {
+    if (isSimEnabled()) {
+      const port = simSelectPort()
+      portRef.current = port
+      setStatus((prev) => ({ ...prev, port, state: 'ready', errorMessage: null }))
+      return
+    }
     try {
       const port = await navigator.serial.requestPort({ filters: SUPPORTED_USB_FILTERS })
       portRef.current = port
@@ -108,9 +141,19 @@ export function useFlasher(): FlasherStatus & FlasherActions {
     logBufferRef.current = ''
     // Preserve the resolved release across reset — it was fetched once on
     // mount and re-fetching on every "Flash again" would just hit the rate
-    // limit for no UX benefit.
-    setStatus((prev) => ({ ...INITIAL_STATUS, release: prev.release }))
+    // limit for no UX benefit. Also preserve advanced options so power-users
+    // don't have to re-toggle them between attempts in the same session.
+    setStatus((prev) => ({
+      ...INITIAL_STATUS,
+      release: prev.release,
+      advanced: prev.advanced,
+    }))
   }, [detachFlashDisconnectHandler])
+
+  const setAdvanced = useCallback((opts: AdvancedOptions) => {
+    advancedRef.current = opts
+    setStatus((prev) => ({ ...prev, advanced: opts }))
+  }, [])
 
   const reselectPort = useCallback(async () => {
     reset()
@@ -135,6 +178,28 @@ export function useFlasher(): FlasherStatus & FlasherActions {
       flashProgress: null,
       log: '',
     }))
+
+    // Sim mode: bypass Web Serial entirely. No download, no SHA, no esptool —
+    // production paths in firmware.ts / esptool.ts stay free of conditionals.
+    if (isSimEnabled()) {
+      try {
+        await simFlash({
+          onLog: appendLog,
+          onProgress: (progress) => {
+            setStatus((prev) => ({ ...prev, flashProgress: progress }))
+          },
+          onChipInfo: (chip) => {
+            setStatus((prev) => ({ ...prev, chipInfo: chip }))
+          },
+        })
+        setStatus((prev) => ({ ...prev, state: 'success' }))
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error'
+        appendLog(`\nError: ${message}\n`)
+        setStatus((prev) => ({ ...prev, state: 'failed', errorMessage: message }))
+      }
+      return
+    }
 
     const startedAt = performance.now()
     let detectedChip: string | null = null
@@ -167,9 +232,15 @@ export function useFlasher(): FlasherStatus & FlasherActions {
     navigator.serial.addEventListener('disconnect', disconnectHandler)
 
     try {
-      const release = releaseRef.current
+      const advanced = advancedRef.current
+      const overrideTag = advanced.versionOverride?.trim() ?? ''
+      let release: Release | null = releaseRef.current
+      if (overrideTag.length > 0) {
+        appendLog(`Fetching release "${overrideTag}" (version override)...\n`)
+        release = await fetchReleaseByTag(overrideTag)
+      }
       const firmwareUrl = release?.firmwareAsset?.url ?? null
-      const useReleaseBundle = release !== null && firmwareUrl !== null
+      const bundleRelease: Release | null = release !== null && firmwareUrl !== null ? release : null
       if (!release) {
         console.warn('Release metadata unavailable — falling back to FIRMWARE_URL.')
         appendLog('Release metadata unavailable — falling back to static URL.\n')
@@ -185,14 +256,14 @@ export function useFlasher(): FlasherStatus & FlasherActions {
       let spiffsBytes: Uint8Array | null = null
       let spiffsManifestUrl: string | null = null
 
-      if (useReleaseBundle) {
-        if (release.spiffsAsset) {
-          appendLog(`Downloading firmware v${release.version} + SPIFFS...\n`)
+      if (bundleRelease) {
+        if (bundleRelease.spiffsAsset) {
+          appendLog(`Downloading firmware v${bundleRelease.version} + SPIFFS...\n`)
         } else {
-          appendLog(`Downloading firmware v${release.version}...\n`)
+          appendLog(`Downloading firmware v${bundleRelease.version}...\n`)
         }
         const bundle = await downloadFirmwareBundle(
-          release,
+          bundleRelease,
           (p) => {
             setStatus((prev) => ({
               ...prev,
@@ -241,6 +312,13 @@ export function useFlasher(): FlasherStatus & FlasherActions {
       // drop the controller so the UI hides the Cancel button.
       downloadAbortRef.current = null
 
+      if (advanced.fullErase) {
+        appendLog('Advanced: full chip erase requested.\n')
+      }
+      if (advanced.baudRate !== DEFAULT_ADVANCED_OPTIONS.baudRate) {
+        appendLog(`Advanced: stub baud rate overridden to ${String(advanced.baudRate)}.\n`)
+      }
+
       await flashFirmware({
         port,
         firmware: firmwareBytes,
@@ -253,6 +331,8 @@ export function useFlasher(): FlasherStatus & FlasherActions {
           detectedChip = chip
           setStatus((prev) => ({ ...prev, chipInfo: chip }))
         },
+        baudRate: advanced.baudRate,
+        fullErase: advanced.fullErase,
       })
 
       detachFlashDisconnectHandler()
@@ -275,7 +355,11 @@ export function useFlasher(): FlasherStatus & FlasherActions {
       if (err instanceof DOMException && err.name === 'AbortError') {
         portRef.current = null
         logBufferRef.current = ''
-        setStatus((prev) => ({ ...INITIAL_STATUS, release: prev.release }))
+        setStatus((prev) => ({
+          ...INITIAL_STATUS,
+          release: prev.release,
+          advanced: prev.advanced,
+        }))
         void sendTelemetry({
           outcome: 'cancelled',
           chipFamily: detectedChip,
@@ -341,6 +425,24 @@ export function useFlasher(): FlasherStatus & FlasherActions {
   useEffect(() => {
     let cancelled = false
 
+    // Sim mode: auto-promote idle → ready with a fake port so contributors
+    // land on the "Flash latest" button on first paint. Deferred via Promise
+    // microtask to satisfy `react-hooks/set-state-in-effect`.
+    if (isSimEnabled()) {
+      void Promise.resolve().then(() => {
+        if (cancelled) return
+        const port = simSelectPort()
+        portRef.current = port
+        setStatus((prev) => {
+          if (prev.state !== 'idle') return prev
+          return { ...prev, port, state: 'ready', errorMessage: null }
+        })
+      })
+      return () => {
+        cancelled = true
+      }
+    }
+
     const promoteIfSingleMatch = async (): Promise<void> => {
       const port = await findSingleSupportedPort()
       if (cancelled || !port) return
@@ -386,5 +488,6 @@ export function useFlasher(): FlasherStatus & FlasherActions {
     reset,
     reselectPort,
     cancel,
+    setAdvanced,
   }
 }

@@ -194,3 +194,41 @@ export async function fetchLatestRelease(): Promise<Release> {
     throw err
   }
 }
+
+/**
+ * Fetches a specific release by Git tag (e.g. `v0.9.1`).
+ *
+ * Used by the Advanced (recovery) panel's "Version override" input — power
+ * users only. A 404 is surfaced as a friendly error so the UI can render it
+ * verbatim without leaking the GitHub API response shape.
+ */
+export async function fetchReleaseByTag(tag: string): Promise<Release> {
+  const trimmed = tag.trim()
+  if (trimmed.length === 0) {
+    throw new Error('Version override is empty')
+  }
+  const url = `https://api.github.com/repos/${GITHUB_REPO}/releases/tags/${encodeURIComponent(trimmed)}`
+  const controller = new AbortController()
+  const timer = setTimeout(() => {
+    controller.abort()
+  }, FETCH_TIMEOUT_MS)
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: 'application/vnd.github.v3+json' },
+      signal: controller.signal,
+    })
+    if (response.status === 404) {
+      throw new Error(`No release found for tag "${trimmed}". Check the tag spelling (e.g. v0.10.0).`)
+    }
+    if (!response.ok) {
+      throw new Error(`GitHub API returned HTTP ${String(response.status)} for tag "${trimmed}"`)
+    }
+    const payload = (await response.json()) as unknown
+    if (!isRelease(payload)) {
+      throw new Error(`GitHub API: release payload for tag "${trimmed}" was malformed`)
+    }
+    return toRelease(payload)
+  } finally {
+    clearTimeout(timer)
+  }
+}

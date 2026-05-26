@@ -34,6 +34,26 @@ export const FLASH_BAUD = 921_600
 export const INITIAL_BAUD = 115_200
 
 /**
+ * Allowed esptool stub baud rates exposed via the Advanced (recovery) panel.
+ * Ordered fastest-first so the default `FLASH_BAUD` reads naturally at the top
+ * of the select. Dropping to 460800 or below is a common workaround for flaky
+ * CH340 bridges on long USB cables / unpowered hubs.
+ */
+export const ADVANCED_BAUD_OPTIONS = [921_600, 460_800, 230_400, 115_200] as const
+export type AdvancedBaudRate = (typeof ADVANCED_BAUD_OPTIONS)[number]
+
+/** Default advanced options — same behaviour the flasher had before #22. */
+export const DEFAULT_ADVANCED_OPTIONS: {
+  fullErase: boolean
+  baudRate: AdvancedBaudRate
+  versionOverride: string | null
+} = {
+  fullErase: false,
+  baudRate: FLASH_BAUD,
+  versionOverride: null,
+}
+
+/**
  * Hard ceiling for firmware downloads.
  *
  * Current merged firmware images are ~1.5 MiB; 16 MiB gives ~10x headroom
@@ -65,6 +85,18 @@ export const MERGED_FLASH_OFFSET = 0x0
  * offset used by canshift-studio's useFirmwareFlash hook.
  */
 export const SPIFFS_FLASH_OFFSET = 0x310000
+
+/**
+ * Build-time simulation flag.
+ *
+ * Set to `'1'` / `'success'` / `'fail'` by `npm run dev -- --mode sim`
+ * (which loads `.env.sim` containing `VITE_SIM=1`) or by an ad-hoc
+ * `VITE_SIM=success` in the shell. Empty / unset means the flasher talks to
+ * real hardware. Read once at module load — toggling at runtime is not
+ * supported. The query-string overrides (`?sim=success`, `?sim=fail`,
+ * `?sim=1`) live in `lib/sim.ts` and take precedence over this value.
+ */
+export const VITE_SIM: string | undefined = import.meta.env.VITE_SIM as string | undefined
 
 /**
  * Telemetry collection endpoint. Opt-in only — there is no default.

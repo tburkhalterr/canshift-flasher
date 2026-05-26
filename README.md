@@ -22,6 +22,49 @@ User flow: plug dash → open canshift.tmbk.ch → "Connect" → "Flash latest" 
 
 No version picker. The flasher always pulls the latest published firmware.
 
+## Advanced (recovery)
+
+A collapsed `<details>` block under the "Flash latest" button exposes three
+power-user escape hatches **for support flows only**:
+
+| Control            | Purpose                                                                                   |
+| ------------------ | ----------------------------------------------------------------------------------------- |
+| Full erase         | Sets `eraseAll=true` on `writeFlash` — wipes the entire chip before the new image lands.  |
+| Baud rate          | Drops the esptool stub baud from `921600` → `460800` / `230400` / `115200`. Useful on flaky CH340 dashes with long USB cables. |
+| Version override   | Pins a specific release tag (e.g. `v0.9.1`). Hits `/releases/tags/{tag}` — same SHA-256 + SPIFFS rules apply. Leave blank to use latest. |
+
+The panel is collapsed by default and never persists across reloads — power
+users re-set per session, which keeps the default flow boring and prevents a
+mis-configured default from haunting a non-technical user.
+
+## Simulation mode (dev-only)
+
+For UI work without a CANShift dash plugged in, the flasher ships a fake
+flash pipeline. It bypasses Web Serial entirely, so every state in the state
+machine (`idle → ready → flashing → success | failed`) can be walked from a
+clean checkout.
+
+Two ways to enable it:
+
+```bash
+# Query-string overrides — easiest, no rebuild needed.
+#   ?sim=1        — alias for ?sim=success
+#   ?sim=success  — happy path, lands on success.
+#   ?sim=fail     — lands on failed with a recognisable error.
+http://localhost:5180/?sim=success
+
+# Build-time flag — drop a `.env.sim` containing `VITE_SIM=1` and run:
+npm run dev -- --mode sim
+
+# Or ad-hoc in the shell:
+VITE_SIM=success npm run dev
+```
+
+When sim mode is active, a small `(sim)` badge appears at the top of the
+flasher card so it's obvious the bytes aren't hitting real silicon. The
+production-flash code paths in `lib/esptool.ts` and `lib/firmware.ts` carry
+no conditional logic — sim mode never reaches them.
+
 ## Stack
 
 - [Vite](https://vitejs.dev/) + [React 19](https://react.dev/) + TypeScript (strict)
