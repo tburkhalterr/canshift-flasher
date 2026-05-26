@@ -1,0 +1,36 @@
+{
+  "_comment": "Generated from RealDash CAN XML — do not edit by hand. Source: canshift-studio/Holley/holley_efi_can.xml",
+  "version": "1.0.0",
+  "protocol": "realdash-xml-import",
+  "canSpeedKbps": 500,
+  "signals": [
+    {
+      "name": "channel_33",
+      "canFrameId": "0xc80",
+      "startByte": 0,
+      "byteLength": 4,
+      "bigEndian": false,
+      "signed": false,
+      "scale": 0.001,
+      "offset": 0,
+      "unit": "",
+      "min": 0,
+      "max": 4294967.3,
+      "timeoutMs": 2000
+    },
+    {
+      "name": "channel_37",
+      "canFrameId": "0xc80",
+      "startByte": 4,
+      "byteLength": 4,
+      "bigEndian": false,
+      "signed": false,
+      "scale": 0.00390625,
+      "offset": 0,
+      "unit": "",
+      "min": 0,
+      "max": 16777216,
+      "timeoutMs": 2000
+    }
+  ]
+}

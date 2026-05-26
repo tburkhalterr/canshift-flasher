@@ -33,6 +33,20 @@ jobs:
       - name: Audit dependencies
         run: npm audit --omit=dev --audit-level=high
 
+      # Check out the sibling canshift-studio repo so verify-profiles can
+      # diff the committed `public/profiles/` against a freshly re-generated
+      # catalog. Catches "XML changed but JSON not regenerated" drift.
+      - name: Checkout canshift-studio
+        uses: actions/checkout@v6
+        with:
+          repository: tburkhalterr/canshift-studio
+          path: canshift-studio-sibling
+
+      - name: Verify generated profiles are in sync
+        env:
+          CANSHIFT_STUDIO_DIR: ${{ github.workspace }}/canshift-studio-sibling
+        run: npm run verify-profiles
+
       - run: npm run typecheck
 
       - run: npm run lint

@@ -15,7 +15,9 @@
     "coverage": "vitest run --coverage",
     "e2e": "playwright test",
     "e2e:install": "playwright install chromium",
-    "sync-brand": "node scripts/sync-brand-assets.mjs"
+    "sync-brand": "node scripts/sync-brand-assets.mjs",
+    "build-profiles": "node scripts/build-profiles.mjs",
+    "verify-profiles": "node scripts/build-profiles.mjs --check"
   },
   "dependencies": {
     "esptool-js": "0.6.0",
