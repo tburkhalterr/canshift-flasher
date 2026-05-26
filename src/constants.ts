@@ -105,8 +105,21 @@ export const SPIFFS_FLASH_OFFSET = 0x370000
  * real hardware. Read once at module load — toggling at runtime is not
  * supported. The query-string overrides (`?sim=success`, `?sim=fail`,
  * `?sim=1`) live in `lib/sim.ts` and take precedence over this value.
+ *
+ * SECURITY (SEC-006, #98): query-string sim activation is gated to dev
+ * builds OR builds with `VITE_SIM` set. The Playwright e2e suite passes
+ * `VITE_SIM=1` to `vite preview` for that reason — see
+ * `playwright.config.ts`.
  */
 export const VITE_SIM: string | undefined = import.meta.env.VITE_SIM as string | undefined
+
+/**
+ * `true` when this bundle was produced by `vite dev` (the dev server).
+ * `false` for `vite build` / `vite preview` (production bundle). Vite
+ * statically replaces `import.meta.env.DEV` at build time so prod bundles
+ * tree-shake all sim-mode code paths gated behind this flag.
+ */
+export const IS_DEV_BUILD: boolean = import.meta.env.DEV === true
 
 /**
  * Telemetry collection endpoint. Opt-in only — there is no default.

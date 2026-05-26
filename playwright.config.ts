@@ -27,9 +27,19 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npm run preview -- --port ${PREVIEW_PORT} --strictPort`,
+    // `vite preview` serves the production build, so `import.meta.env.DEV` is
+    // false. SEC-006 (#98) gates `?sim=*` to dev builds OR builds with
+    // `VITE_SIM` set — we set `VITE_SIM=1` here so the e2e suite's
+    // `?sim=success` / `?sim=fail` navigations continue to activate sim mode
+    // against the production bundle without re-opening the phishing surface
+    // on the deployed flasher.
+    //
+    // Note: this re-builds the bundle with `VITE_SIM=1` baked in, so we
+    // invoke `npm run build` before `vite preview` to make sure the
+    // environment is read at build time (Vite inlines `import.meta.env.*`).
+    command: `VITE_SIM=1 npm run build && VITE_SIM=1 npm run preview -- --port ${PREVIEW_PORT} --strictPort`,
     port: PREVIEW_PORT,
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    timeout: 180_000,
   },
 })
