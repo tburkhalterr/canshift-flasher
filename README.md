@@ -248,7 +248,7 @@ clean checkout.
 Two ways to enable it:
 
 ```bash
-# Query-string overrides — easiest, no rebuild needed.
+# Query-string overrides — easiest in dev, no rebuild needed.
 #   ?sim=1        — alias for ?sim=success
 #   ?sim=success  — happy path, lands on success.
 #   ?sim=fail     — lands on failed with a recognisable error.
@@ -265,6 +265,15 @@ When sim mode is active, a small `(sim)` badge appears at the top of the
 flasher card so it's obvious the bytes aren't hitting real silicon. The
 production-flash code paths in `lib/esptool.ts` and `lib/firmware.ts` carry
 no conditional logic — sim mode never reaches them.
+
+> **Security note (SEC-006, #98):** the `?sim=*` query string is honoured
+> only on `vite dev` (where `import.meta.env.DEV` is true) **or** on a
+> build that was produced with `VITE_SIM` set (the e2e opt-in). The
+> deployed production bundle ignores `?sim=*` entirely so a phishing link
+> like `https://flasher.example/?sim=success` cannot trick a user into
+> thinking their ESP32 was flashed. If sim mode is somehow active on a
+> production build, the small `(sim)` pill is replaced with a loud red
+> "Simulation mode — nothing is being flashed" banner.
 
 ## Advanced (recovery)
 
