@@ -33,4 +33,9 @@ jobs:
 
       - run: npm run lint
 
+      - run: npm test
+
       - run: npm run build
+
+      - name: Lighthouse CI
+        run: npx --yes @lhci/cli@0.14.x autorun

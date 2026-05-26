@@ -211,6 +211,23 @@ The flasher intentionally does **not** depend on `canshift-core` or
 the logo PNG, the favicon, and the CSS variables in `src/styles/tokens.css`
 manually.
 
+### One-command sync
+
+```bash
+npm run sync-brand
+```
+
+Runs `scripts/sync-brand-assets.mjs`, which copies the logo and favicon from
+`../canshift-studio/assets/` and regenerates the `:root` block of
+`src/styles/tokens.css` from `../canshift-core/src/design-tokens.ts`
+(`DARK_TOKENS.colors`). Run this after any studio identity update; commit
+the resulting diff. The script bails with a clear message if the sibling
+repos are not checked out next to this one.
+
+The script is **not** wired into CI — sibling repos are not available
+there. It is a maintenance-time tool only; the manual sync paragraph above
+remains the fallback for ad-hoc updates.
+
 ## Deploy
 
 This project does not include any deploy automation. The maintainer wires

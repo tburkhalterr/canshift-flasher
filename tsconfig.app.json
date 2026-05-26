@@ -19,7 +19,7 @@
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
     "noEmit": true,
-    "types": ["w3c-web-serial", "vite/client"]
+    "types": ["w3c-web-serial", "vite/client", "vitest/globals", "@testing-library/jest-dom"]
   },
   "include": ["src"]
 }
