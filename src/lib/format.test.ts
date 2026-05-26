@@ -6,6 +6,7 @@ import {
   buildLogFilename,
   formatBytes,
   formatPortInfo,
+  formatPublishedDate,
   type LogReportInput,
 } from './format'
 
@@ -101,6 +102,32 @@ describe('buildLogBlob', () => {
     const text = await blob.text()
     expect(text).toContain('Chip: unknown')
     expect(text).toContain('Port: unknown')
+  })
+})
+
+describe('formatPublishedDate', () => {
+  it('formats a valid ISO timestamp as YYYY-MM-DD in UTC', () => {
+    expect(formatPublishedDate('2026-05-20T07:20:41Z')).toBe('2026-05-20')
+  })
+
+  it('returns the input verbatim when the string is not a date', () => {
+    expect(formatPublishedDate('not-a-date')).toBe('not-a-date')
+  })
+
+  it('returns an empty string for empty input', () => {
+    expect(formatPublishedDate('')).toBe('')
+  })
+
+  it('handles a date-only ISO string', () => {
+    expect(formatPublishedDate('2026-05-20')).toBe('2026-05-20')
+  })
+
+  it('normalises an offset timezone to UTC', () => {
+    expect(formatPublishedDate('2026-05-20T23:30:00+02:00')).toBe('2026-05-20')
+  })
+
+  it('rolls the date forward when the UTC equivalent is the next day', () => {
+    expect(formatPublishedDate('2026-05-20T23:30:00-05:00')).toBe('2026-05-21')
   })
 })
 
