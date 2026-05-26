@@ -368,6 +368,14 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
         tVerifyDone = performance.now()
       }
 
+      // The signal isn't propagated into `verifyPayload` (digest verification
+      // is pure compute, manifest fetch is short) — check it explicitly here
+      // so a click on Cancel during the verify phase still aborts cleanly
+      // before we start writeFlash (which is uninterruptible).
+      if (abortController.signal.aborted) {
+        throw new DOMException('Aborted during verification', 'AbortError')
+      }
+
       // Once writeFlash is about to start, cancellation is no longer offered —
       // drop the controller so the UI hides the Cancel button.
       downloadAbortRef.current = null
