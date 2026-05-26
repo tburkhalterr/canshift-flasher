@@ -14,6 +14,10 @@
 
 import { TELEMETRY_URL } from '../constants'
 
+import { BootloaderEntryError, FlashIdError } from './esptool'
+import { FirmwareDownloadError } from './firmware'
+import { FirmwareIntegrityError } from './integrity'
+
 export type TelemetryOutcome = 'success' | 'failed' | 'cancelled'
 
 export type TelemetryErrorClass =
@@ -86,10 +90,34 @@ function isOptedOut(): boolean {
 }
 
 /**
- * Map a free-form error message to a stable, low-cardinality bucket. The
- * raw message is never sent — only the bucket name.
+ * Map an error to a stable, low-cardinality bucket. The raw message is
+ * never sent — only the bucket name.
+ *
+ * Branches on typed `instanceof` first; falls back to regex over the
+ * `.message` of a plain `Error` and logs a `console.warn` so future drift
+ * (a throw site that forgot its typed class) is visible during development.
  */
-export function classifyError(message: string): TelemetryErrorClass {
+export function classifyError(err: unknown): TelemetryErrorClass {
+  if (err instanceof FlashIdError) return 'flash-id-ffffff'
+  if (err instanceof BootloaderEntryError) return 'sync-failed'
+  if (err instanceof FirmwareIntegrityError) return 'sha256-mismatch'
+  if (err instanceof FirmwareDownloadError) return 'http'
+  if (err instanceof DOMException && err.name === 'AbortError') return 'cancelled'
+
+  if (err instanceof Error) {
+    const message = err.message
+    const bucket = classifyByMessage(message)
+    if (bucket !== 'unknown') {
+      console.warn(
+        `[telemetry] classifyError matched "${bucket}" via regex fallback — caller should throw a typed error class.`,
+      )
+    }
+    return bucket
+  }
+  return 'unknown'
+}
+
+function classifyByMessage(message: string): TelemetryErrorClass {
   if (/Flash ID is ffffff/i.test(message)) return 'flash-id-ffffff'
   if (/SHA-?256.*mismatch/i.test(message)) return 'sha256-mismatch'
   if (/USB connection lost/i.test(message) || /disconnect/i.test(message)) {

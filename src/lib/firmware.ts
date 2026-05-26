@@ -14,6 +14,18 @@ export interface FirmwareBinary {
 }
 
 /**
+ * Thrown when the firmware download itself fails — HTTP non-2xx, missing
+ * body, or the size cap is exceeded. SHA-256 mismatches are NOT this class:
+ * see `FirmwareIntegrityError` in `./integrity.ts`.
+ */
+export class FirmwareDownloadError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'FirmwareDownloadError'
+  }
+}
+
+/**
  * Stream-download a firmware binary from `url`, surfacing byte progress so
  * the UI can render a determinate bar when Content-Length is present (and
  * an indeterminate one otherwise).
@@ -33,10 +45,12 @@ export async function downloadFirmware(
 
   const response = await fetch(url, requestInit)
   if (!response.ok) {
-    throw new Error(`Firmware download failed: HTTP ${response.status} ${response.statusText}`)
+    throw new FirmwareDownloadError(
+      `Firmware download failed: HTTP ${String(response.status)} ${response.statusText}`,
+    )
   }
   if (!response.body) {
-    throw new Error('Firmware download failed: empty response body')
+    throw new FirmwareDownloadError('Firmware download failed: empty response body')
   }
 
   const contentLengthHeader = response.headers.get('content-length')
@@ -46,7 +60,7 @@ export async function downloadFirmware(
   // larger than the cap. A hostile mirror could lie in Content-Length but
   // the in-loop guard below catches that case too.
   if (total !== null && Number.isFinite(total) && total > FIRMWARE_BINARY_MAX_BYTES) {
-    throw new Error(
+    throw new FirmwareDownloadError(
       `Firmware download rejected: announced size ${String(total)} bytes exceeds cap of ${String(FIRMWARE_BINARY_MAX_BYTES)} bytes`,
     )
   }
@@ -64,7 +78,7 @@ export async function downloadFirmware(
         await reader.cancel().catch(() => {
           /* best-effort: server may have already closed the stream */
         })
-        throw new Error(
+        throw new FirmwareDownloadError(
           `Firmware download rejected: streamed ${String(loaded)} bytes exceeds cap of ${String(FIRMWARE_BINARY_MAX_BYTES)} bytes`,
         )
       }
@@ -116,7 +130,7 @@ export async function downloadFirmwareBundle(
   signal?: AbortSignal,
 ): Promise<FirmwareBundle> {
   if (!release.firmwareAsset) {
-    throw new Error('Release is missing a firmware asset')
+    throw new FirmwareDownloadError('Release is missing a firmware asset')
   }
   const fwAsset = release.firmwareAsset
   const spiffsAsset = release.spiffsAsset

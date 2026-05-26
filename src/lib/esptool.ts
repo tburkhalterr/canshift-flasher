@@ -61,6 +61,32 @@ export interface FlashRunOptions {
 const BOOTLOADER_GIVE_UP_MESSAGE =
   'Could not enter ESP32 bootloader automatically after 3 attempts. Hold the BOOT button on the device, press RESET (or unplug/replug USB while holding BOOT), then click Retry.'
 
+/**
+ * Thrown when the bootloader reports `Flash ID: ffffff` — the chip can't
+ * reach its own SPI flash. Almost always cable / hub / GPIO 6-11 pulldown.
+ */
+export class FlashIdError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'FlashIdError'
+  }
+}
+
+/**
+ * Thrown when every reset variant fails to enter the ROM bootloader. The
+ * original esptool error is preserved as `.cause` for diagnostics; the
+ * `.message` is the user-facing BOOT-button instruction.
+ */
+export class BootloaderEntryError extends Error {
+  constructor(message: string, cause?: unknown) {
+    super(message)
+    this.name = 'BootloaderEntryError'
+    if (cause !== undefined) {
+      ;(this as Error & { cause?: unknown }).cause = cause
+    }
+  }
+}
+
 function sleepMs(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms)
@@ -182,11 +208,10 @@ export async function flashFirmware(options: FlashRunOptions): Promise<void> {
     onLog(`\n${BOOTLOADER_GIVE_UP_MESSAGE}\n`)
     // Preserve the original error as the cause for diagnostics, but surface
     // the clear user-facing message at .message level.
-    const wrapped = new Error(BOOTLOADER_GIVE_UP_MESSAGE)
-    if (lastError instanceof Error) {
-      ;(wrapped as Error & { cause?: unknown }).cause = lastError
-    }
-    throw wrapped
+    throw new BootloaderEntryError(
+      BOOTLOADER_GIVE_UP_MESSAGE,
+      lastError instanceof Error ? lastError : undefined,
+    )
   }
 
   try {
@@ -195,7 +220,7 @@ export async function flashFirmware(options: FlashRunOptions): Promise<void> {
     // Abort before writeFlash if the bootloader reported a bad Flash ID —
     // continuing would just hang for the full 60s flash-command timeout.
     if (flashIdState.bad) {
-      throw new Error(
+      throw new FlashIdError(
         "Flash ID is ffffff — the chip can't reach its own flash. Try: another USB cable, a powered hub, no peripherals on GPIO 6-11.",
       )
     }

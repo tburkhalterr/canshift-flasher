@@ -305,7 +305,7 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
         chipFamily: detectedChip,
         firmwareVersion: releaseRef.current?.version ?? null,
         durationMs: Math.round(performance.now() - startedAt),
-        errorClass: classifyError(message),
+        errorClass: classifyError(err),
       })
     }
   }, [appendLog, disconnectGuard, releaseRef])
