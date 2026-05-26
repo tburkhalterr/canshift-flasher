@@ -28,9 +28,9 @@ export const useLatestRelease = (): UseLatestReleaseResult => {
         releaseRef.current = value
         setRelease(value)
       })
-      .catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : String(err)
-        console.warn('Failed to fetch latest release metadata:', message)
+      .catch(() => {
+        // UI surfaces this via the ChannelPicker error state — no need to
+        // duplicate the message in the browser console.
       })
     return () => {
       cancelled = true

@@ -150,10 +150,58 @@ function toRelease(raw: GitHubRelease): Release {
 let cachedRecentPromise: Promise<RecentRelease[]> | null = null
 let cachedFullPromise: Promise<Release[]> | null = null
 
-/** Clears module-level fetch caches. Used by tests to start from a clean slate. */
+/**
+ * `localStorage` persistence layer on top of the in-memory cache. Survives page
+ * reloads so a rate-limited browser still has fresh-enough release data to
+ * render the UI. Stale-while-revalidate: a cached entry is returned immediately
+ * even past its TTL, and a background refresh updates the cache for next time.
+ */
+const LS_CACHE_KEY = 'canshift-flasher.releases.v1'
+/** 10 minutes — short enough that a release ships quickly, long enough to
+ *  shield casual reloads from the 60 req/h anon rate limit. */
+const LS_CACHE_TTL_MS = 10 * 60 * 1000
+
+interface PersistedCache {
+  fetchedAt: number
+  releases: Release[]
+}
+
+const readPersistedCache = (): PersistedCache | null => {
+  if (typeof localStorage === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(LS_CACHE_KEY)
+    if (raw === null) return null
+    const parsed = JSON.parse(raw) as unknown
+    if (typeof parsed !== 'object' || parsed === null) return null
+    const obj = parsed as Record<string, unknown>
+    if (typeof obj.fetchedAt !== 'number' || !Array.isArray(obj.releases)) return null
+    return { fetchedAt: obj.fetchedAt, releases: obj.releases as Release[] }
+  } catch {
+    return null
+  }
+}
+
+const writePersistedCache = (releases: Release[]): void => {
+  if (typeof localStorage === 'undefined') return
+  try {
+    const payload: PersistedCache = { fetchedAt: Date.now(), releases }
+    localStorage.setItem(LS_CACHE_KEY, JSON.stringify(payload))
+  } catch {
+    // Quota / private-mode failures are non-fatal — in-memory cache still works.
+  }
+}
+
+/** Clears module-level + persistent fetch caches. Used by tests to start clean. */
 export const __resetReleaseCacheForTests = (): void => {
   cachedRecentPromise = null
   cachedFullPromise = null
+  if (typeof localStorage !== 'undefined') {
+    try {
+      localStorage.removeItem(LS_CACHE_KEY)
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 const fetchJsonWithTimeout = async (url: string): Promise<unknown> => {
@@ -184,24 +232,43 @@ const fetchJsonWithTimeout = async (url: string): Promise<unknown> => {
  * 404 on every page load. Picking the right candidate from a 20-item list
  * is cheap. Default flow prefers stable; `?prerelease=1` prefers prereleases.
  */
+const fetchFromNetwork = async (): Promise<Release[]> => {
+  const url = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=20`
+  const payload = await fetchJsonWithTimeout(url)
+  if (!Array.isArray(payload)) {
+    throw new Error('GitHub API: expected an array of releases')
+  }
+  const releases = payload.filter(isRelease).map(toRelease)
+  writePersistedCache(releases)
+  return releases
+}
+
 const fetchAllReleases = (): Promise<Release[]> => {
   if (cachedFullPromise) return cachedFullPromise
-  const url = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=20`
-  const promise = (async (): Promise<Release[]> => {
+
+  const persisted = readPersistedCache()
+  const isFresh = persisted !== null && Date.now() - persisted.fetchedAt < LS_CACHE_TTL_MS
+
+  if (persisted && isFresh) {
+    // Fresh hit: skip the network entirely.
+    cachedFullPromise = Promise.resolve(persisted.releases)
+    return cachedFullPromise
+  }
+
+  const networkPromise = (async (): Promise<Release[]> => {
     try {
-      const payload = await fetchJsonWithTimeout(url)
-      if (!Array.isArray(payload)) {
-        throw new Error('GitHub API: expected an array of releases')
-      }
-      return payload.filter(isRelease).map(toRelease)
+      return await fetchFromNetwork()
     } catch (err) {
-      // Drop the cached promise on failure so the next caller can retry.
+      // Stale-while-revalidate: if the API is unreachable but we have any
+      // cached data (even past TTL), fall back to it instead of bubbling
+      // the error — the UI was rendering it anyway.
+      if (persisted) return persisted.releases
       cachedFullPromise = null
       throw err
     }
   })()
-  cachedFullPromise = promise
-  return promise
+  cachedFullPromise = networkPromise
+  return networkPromise
 }
 
 export const fetchLatestRelease = async (): Promise<Release> => {
