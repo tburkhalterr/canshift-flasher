@@ -32,7 +32,7 @@ export interface AdvancedOptions {
 }
 
 const DISCONNECT_DURING_FLASH_MESSAGE =
-  'USB connection lost mid-flash — re-plug the dash and click Retry.'
+  'USB connection lost mid-flash — re-plug the ESP32 and click Retry.'
 
 /**
  * Hard cap on the in-memory log buffer. esptool can emit a few hundred KiB

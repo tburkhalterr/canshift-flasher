@@ -16,7 +16,7 @@ test.describe('sim happy-path flow', () => {
     // returns to idle reliably because useAutoConnect is mount-only.
 
     await expect(
-      page.getByRole('img', { name: 'CANShift dash connected, ready to flash' }),
+      page.getByRole('img', { name: 'ESP32 connected, ready to flash' }),
     ).toBeVisible()
     await expect(
       page.getByRole('listitem', { name: /Step 2 of 3: Connect/ }),
@@ -29,13 +29,13 @@ test.describe('sim happy-path flow', () => {
     await page.getByRole('button', { name: 'Flash latest' }).click()
 
     await expect(
-      page.getByRole('img', { name: 'CANShift dash being flashed' }),
+      page.getByRole('img', { name: 'ESP32 being flashed' }),
     ).toBeVisible()
     await expect(
       page.getByRole('listitem', { name: /Step 3 of 3: Flash/ }),
     ).toHaveAttribute('aria-current', 'step')
     await expect(
-      page.getByText('Do not unplug the dash while flashing.'),
+      page.getByText('Do not unplug the ESP32 while flashing.'),
     ).toBeVisible()
 
     // --- Wait for SuccessView (sim's scripted timing is ~3-4s). ---
@@ -69,7 +69,7 @@ test.describe('sim happy-path flow', () => {
 
     // Idle paint after reset — assertions the initial paint was too racy for.
     await expect(
-      page.getByRole('img', { name: 'CANShift dash awaiting USB connection' }),
+      page.getByRole('img', { name: 'ESP32 awaiting USB connection' }),
     ).toBeVisible()
     await expect(
       page.getByRole('listitem', { name: /Step 1 of 3: Plug/ }),

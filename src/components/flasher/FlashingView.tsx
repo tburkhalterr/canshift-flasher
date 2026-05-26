@@ -51,7 +51,7 @@ export const FlashingView = ({
       </div>
 
       <div className="rounded-md border border-warning/60 bg-surface-2 px-4 py-3 text-sm text-warning">
-        Do not unplug the dash while flashing.
+        Do not unplug the ESP32 while flashing.
       </div>
 
       {chipInfo ? (
