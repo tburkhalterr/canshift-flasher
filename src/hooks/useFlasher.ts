@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { SUPPORTED_USB_FILTERS } from '../constants'
 import { flashFirmware, type FlashProgress } from '../lib/esptool'
 import { downloadFirmware, type FirmwareDownloadProgress } from '../lib/firmware'
+import { classifyError, sendTelemetry } from '../lib/telemetry'
 
 const DISCONNECT_DURING_FLASH_MESSAGE =
   'USB connection lost mid-flash — re-plug the dash and click Retry.'
@@ -116,6 +117,9 @@ export function useFlasher(): FlasherStatus & FlasherActions {
       log: '',
     }))
 
+    const startedAt = performance.now()
+    let detectedChip: string | null = null
+
     const abortController = new AbortController()
     downloadAbortRef.current = abortController
 
@@ -132,6 +136,13 @@ export function useFlasher(): FlasherStatus & FlasherActions {
         errorMessage: DISCONNECT_DURING_FLASH_MESSAGE,
       }))
       detachFlashDisconnectHandler()
+      void sendTelemetry({
+        outcome: 'failed',
+        chipFamily: detectedChip,
+        firmwareVersion: null,
+        durationMs: Math.round(performance.now() - startedAt),
+        errorClass: 'disconnect',
+      })
     }
     flashDisconnectHandlerRef.current = disconnectHandler
     navigator.serial.addEventListener('disconnect', disconnectHandler)
@@ -155,6 +166,7 @@ export function useFlasher(): FlasherStatus & FlasherActions {
           setStatus((prev) => ({ ...prev, flashProgress: progress }))
         },
         onChipInfo: (chip) => {
+          detectedChip = chip
           setStatus((prev) => ({ ...prev, chipInfo: chip }))
         },
       })
@@ -162,6 +174,13 @@ export function useFlasher(): FlasherStatus & FlasherActions {
       detachFlashDisconnectHandler()
       downloadAbortRef.current = null
       setStatus((prev) => ({ ...prev, state: 'success' }))
+      void sendTelemetry({
+        outcome: 'success',
+        chipFamily: detectedChip,
+        firmwareVersion: null,
+        durationMs: Math.round(performance.now() - startedAt),
+        errorClass: null,
+      })
     } catch (err) {
       detachFlashDisconnectHandler()
       downloadAbortRef.current = null
@@ -173,11 +192,25 @@ export function useFlasher(): FlasherStatus & FlasherActions {
         portRef.current = null
         logBufferRef.current = ''
         setStatus({ ...INITIAL_STATUS })
+        void sendTelemetry({
+          outcome: 'cancelled',
+          chipFamily: detectedChip,
+          firmwareVersion: null,
+          durationMs: Math.round(performance.now() - startedAt),
+          errorClass: 'cancelled',
+        })
         return
       }
       const message = err instanceof Error ? err.message : 'Unknown error'
       appendLog(`\nError: ${message}\n`)
       setStatus((prev) => ({ ...prev, state: 'failed', errorMessage: message }))
+      void sendTelemetry({
+        outcome: 'failed',
+        chipFamily: detectedChip,
+        firmwareVersion: null,
+        durationMs: Math.round(performance.now() - startedAt),
+        errorClass: classifyError(message),
+      })
     }
   }, [appendLog, detachFlashDisconnectHandler])
 
