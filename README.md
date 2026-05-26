@@ -65,6 +65,11 @@ npm run dev
 Open the printed local URL in a Chromium browser. The browser-support detector
 flips to the "Chromium required" banner automatically in non-Chromium browsers.
 
+End-to-end coverage of the integrated UI flow uses Playwright against a
+preview build with sim mode — no hardware required. First time, install the
+Chromium binary with `npm run e2e:install`, then run the suite with
+`npm run e2e`. CI runs the same command on every PR.
+
 ## Build
 
 ```bash
