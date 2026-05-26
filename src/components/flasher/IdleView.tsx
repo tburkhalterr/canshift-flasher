@@ -3,11 +3,13 @@ import { useMemo, type ReactElement } from 'react'
 
 import type { AdvancedOptions } from '../../hooks/useFlasher'
 import { useReleaseChannel } from '../../hooks/useReleaseChannel'
+import { type LocalFirmware } from '../../lib/local-firmware'
 import { readDefaultChannel, type Release } from '../../lib/releases'
 
 import { ChannelPicker } from './ChannelPicker'
 import { ErrorBanner } from './ErrorBanner'
 import { DashIllustration } from './illustrations/DashIllustration'
+import { LocalFirmwareInput } from './LocalFirmwareInput'
 import { ReleaseSummary } from './ReleaseSummary'
 import { PRIMARY_CTA_CLASSES, SECTION_HEADER_CLASSES } from './styles'
 
@@ -17,6 +19,8 @@ interface IdleViewProps {
   release: Release | null
   advanced: AdvancedOptions
   onAdvancedChange: (opts: AdvancedOptions) => void
+  localFirmware: LocalFirmware | null
+  onLocalFirmwareChange: (firmware: LocalFirmware | null) => void
 }
 
 export const IdleView = ({
@@ -25,6 +29,8 @@ export const IdleView = ({
   release,
   advanced,
   onAdvancedChange,
+  localFirmware,
+  onLocalFirmwareChange,
 }: IdleViewProps): ReactElement => {
   const initialChannel = useMemo(() => readDefaultChannel(), [])
   const { channel, setChannel, releases, loading, error } = useReleaseChannel(initialChannel)
@@ -56,23 +62,21 @@ export const IdleView = ({
         </p>
       </div>
 
-      <ChannelPicker
-        channel={channel}
-        onChannelChange={handleChannelChange}
-        releases={releases}
-        selectedTag={selectedTag}
-        onVersionChange={handleVersionChange}
-        loading={loading}
-        error={error}
-      />
-
-      {release ? (
-        <ReleaseSummary release={release} />
-      ) : (
-        <div className="rounded-md border border-border bg-surface-2 px-4 py-3 text-sm text-text-dim">
-          Latest version: checking…
-        </div>
+      {localFirmware ? null : (
+        <ChannelPicker
+          channel={channel}
+          onChannelChange={handleChannelChange}
+          releases={releases}
+          selectedTag={selectedTag}
+          onVersionChange={handleVersionChange}
+          loading={loading}
+          error={error}
+        />
       )}
+
+      <LocalFirmwareInput value={localFirmware} onChange={onLocalFirmwareChange} />
+
+      {localFirmware || !release ? null : <ReleaseSummary release={release} />}
 
       <button
         type="button"

@@ -91,28 +91,24 @@ export function App(): ReactElement {
         )}
       </div>
 
-      <footer className="border-t border-border px-4 py-3 text-center text-xs text-text-muted sm:px-6">
-        <p>
-          First flash · Update · Recovery — same flow ·{' '}
-          <a
-            href={FLASHER_REPO_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="underline-offset-4 hover:underline"
-          >
-            tburkhalterr/canshift-flasher
-          </a>
-          {' · build '}
-          <a
-            href={`${FLASHER_REPO_URL}/commit/${BUILD_SHA}`}
-            target="_blank"
-            rel="noreferrer"
-            className="underline-offset-4 hover:underline"
-          >
-            {BUILD_SHA}
-          </a>{' '}
-          · {buildDate}
-        </p>
+      <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-2 text-xs text-text-muted sm:px-6">
+        <a
+          href={FLASHER_REPO_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="underline-offset-4 hover:text-text hover:underline"
+        >
+          tburkhalterr/canshift-flasher
+        </a>
+        <a
+          href={`${FLASHER_REPO_URL}/commit/${BUILD_SHA}`}
+          target="_blank"
+          rel="noreferrer"
+          className="font-mono underline-offset-4 hover:text-text hover:underline"
+          title={`Built ${buildDate}`}
+        >
+          {BUILD_SHA} · {buildDate}
+        </a>
       </footer>
     </div>
   )

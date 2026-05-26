@@ -27,6 +27,8 @@ const renderStateView = (flasher: ReturnType<typeof useFlasher>): ReactElement =
           release={flasher.release}
           advanced={flasher.advanced}
           onAdvancedChange={flasher.setAdvanced}
+          localFirmware={flasher.localFirmware}
+          onLocalFirmwareChange={flasher.setLocalFirmware}
         />
       )
     case 'ready':

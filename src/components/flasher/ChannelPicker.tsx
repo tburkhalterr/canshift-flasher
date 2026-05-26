@@ -85,7 +85,9 @@ export const ChannelPicker = ({
 
       {error ? (
         <p className="text-xs text-status-danger" role="alert">
-          Couldn&apos;t load the release list — {error}
+          {/HTTP 403/i.test(error)
+            ? 'GitHub rate limit hit — try again later, or use the local-file option below.'
+            : `Couldn't load the release list — ${error}`}
         </p>
       ) : !loading && releases.length === 0 ? (
         <p className="text-xs text-text-muted">

@@ -9,6 +9,7 @@ import {
 import { flashFirmware, probeChip, type FlashProgress } from '../lib/esptool'
 import { type FirmwareDownloadProgress } from '../lib/firmware'
 import { acquirePayload, resolveActiveRelease, verifyPayload } from '../lib/flash-flow'
+import { type LocalFirmware } from '../lib/local-firmware'
 import { type Release } from '../lib/releases'
 import { isSimEnabled, simFlash, simSelectPort } from '../lib/sim'
 import { classifyError, sendTelemetry } from '../lib/telemetry'
@@ -104,6 +105,8 @@ export interface FlasherStatus {
   logTruncated: boolean
   release: Release | null
   advanced: AdvancedOptions
+  /** User-supplied firmware that bypasses the GitHub release fetch. */
+  localFirmware: LocalFirmware | null
 }
 
 const INITIAL_STATUS: FlasherStatus = {
@@ -118,6 +121,7 @@ const INITIAL_STATUS: FlasherStatus = {
   logTruncated: false,
   release: null,
   advanced: DEFAULT_ADVANCED_OPTIONS,
+  localFirmware: null,
 }
 
 export interface FlasherActions {
@@ -127,6 +131,7 @@ export interface FlasherActions {
   reselectPort: () => Promise<void>
   cancel: () => void
   setAdvanced: (opts: AdvancedOptions) => void
+  setLocalFirmware: (firmware: LocalFirmware | null) => void
 }
 
 export const useFlasher = (): FlasherStatus & FlasherActions => {
@@ -141,6 +146,9 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
   // Mirror of `status.advanced` so `flash()` reads the latest power-user
   // options at call time without being recreated on every toggle.
   const advancedRef = useRef<AdvancedOptions>(DEFAULT_ADVANCED_OPTIONS)
+  // Mirror of `status.localFirmware` so `flash()` reads the current upload
+  // without depending on the React state at the time the callback was created.
+  const localFirmwareRef = useRef<LocalFirmware | null>(null)
 
   const disconnectGuard = useDisconnectGuard()
 
@@ -235,12 +243,18 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
       ...INITIAL_STATUS,
       release: prev.release,
       advanced: prev.advanced,
+      localFirmware: prev.localFirmware,
     }))
   }, [disconnectGuard])
 
   const setAdvanced = useCallback((opts: AdvancedOptions) => {
     advancedRef.current = opts
     setStatus((prev) => ({ ...prev, advanced: opts }))
+  }, [])
+
+  const setLocalFirmware = useCallback((firmware: LocalFirmware | null) => {
+    localFirmwareRef.current = firmware
+    setStatus((prev) => ({ ...prev, localFirmware: firmware }))
   }, [])
 
   const reselectPort = useCallback(async () => {
@@ -310,26 +324,47 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
 
     try {
       const advanced = advancedRef.current
-      const overrideTag = advanced.versionOverride?.trim() ?? ''
-      const activeRelease: Release | null = await resolveActiveRelease(
-        releaseRef.current,
-        overrideTag,
-        appendLog,
-      )
-      const payload = await acquirePayload(activeRelease, abortController.signal, {
-        onLog: appendLog,
-        onProgress: (p) => {
-          setStatus((prev) => ({
-            ...prev,
-            downloadProgress: p.firmware ?? prev.downloadProgress,
-            spiffsDownloadProgress: p.spiffs,
-          }))
-        },
-      })
-      tDownloadDone = performance.now()
+      const local = localFirmwareRef.current
+      let payload: Awaited<ReturnType<typeof acquirePayload>>
 
-      await verifyPayload(payload, appendLog)
-      tVerifyDone = performance.now()
+      if (local) {
+        if (local.expectedSha256 && local.expectedSha256.toLowerCase() !== local.sha256) {
+          throw new Error(
+            `Local firmware SHA-256 mismatch (expected ${local.expectedSha256}, got ${local.sha256}). Refusing to flash.`,
+          )
+        }
+        appendLog(`Using local firmware "${local.name}" (${String(local.bytes.byteLength)} bytes).\n`)
+        appendLog(`SHA-256 ${local.sha256} ${local.expectedSha256 ? '(verified)' : '(unverified)'}.\n`)
+        payload = {
+          firmwareBytes: local.bytes,
+          firmwareManifestUrl: '',
+          spiffsBytes: null,
+          spiffsManifestUrl: null,
+        }
+        tDownloadDone = performance.now()
+        tVerifyDone = tDownloadDone
+      } else {
+        const overrideTag = advanced.versionOverride?.trim() ?? ''
+        const activeRelease: Release | null = await resolveActiveRelease(
+          releaseRef.current,
+          overrideTag,
+          appendLog,
+        )
+        payload = await acquirePayload(activeRelease, abortController.signal, {
+          onLog: appendLog,
+          onProgress: (p) => {
+            setStatus((prev) => ({
+              ...prev,
+              downloadProgress: p.firmware ?? prev.downloadProgress,
+              spiffsDownloadProgress: p.spiffs,
+            }))
+          },
+        })
+        tDownloadDone = performance.now()
+
+        await verifyPayload(payload, appendLog)
+        tVerifyDone = performance.now()
+      }
 
       // Once writeFlash is about to start, cancellation is no longer offered —
       // drop the controller so the UI hides the Cancel button.
@@ -450,5 +485,6 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
     reselectPort,
     cancel,
     setAdvanced,
+    setLocalFirmware,
   }
 }
