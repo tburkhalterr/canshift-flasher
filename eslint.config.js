@@ -17,6 +17,9 @@ export default tseslint.config(
       '*.config.ts',
       'scripts/**',
       'public/**',
+      // Claude tooling stores parallel-work worktrees here. Their dist/
+      // and node_modules/ should never be linted.
+      '.claude/**',
     ],
   },
   js.configs.recommended,
