@@ -10,8 +10,10 @@ import {
 } from '../lib/format'
 import type { Release } from '../lib/releases'
 
+import { HelpZone } from './HelpZone'
 import { LogStream } from './LogStream'
 import { ProgressBar } from './ProgressBar'
+import { StepGuide } from './StepGuide'
 
 interface LogContext {
   log: string
@@ -56,13 +58,7 @@ interface FlasherProps {
   webSerialSupported: boolean
 }
 
-export function Flasher({ webSerialSupported }: FlasherProps): ReactElement {
-  const flasher = useFlasher()
-
-  if (!webSerialSupported) {
-    return <UnsupportedBrowser />
-  }
-
+function renderStateView(flasher: ReturnType<typeof useFlasher>): ReactElement {
   switch (flasher.state) {
     case 'idle':
       return (
@@ -114,6 +110,22 @@ export function Flasher({ webSerialSupported }: FlasherProps): ReactElement {
         />
       )
   }
+}
+
+export function Flasher({ webSerialSupported }: FlasherProps): ReactElement {
+  const flasher = useFlasher()
+
+  if (!webSerialSupported) {
+    return <UnsupportedBrowser />
+  }
+
+  return (
+    <div className="space-y-6">
+      <StepGuide state={flasher.state} />
+      {renderStateView(flasher)}
+      <HelpZone />
+    </div>
+  )
 }
 
 function UnsupportedBrowser(): ReactElement {
