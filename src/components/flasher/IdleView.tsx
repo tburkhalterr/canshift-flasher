@@ -20,12 +20,12 @@ export const IdleView = ({ onConnect, errorMessage, release }: IdleViewProps): R
       <div className="flex flex-col items-center gap-3">
         <DashIllustration variant="idle" />
         <p className="text-sm leading-relaxed text-text-dim">
-          Plug your dash in via USB to begin.
+          Plug your ESP32 in via USB to begin.
         </p>
       </div>
 
       <div className="space-y-2">
-        <h2 className={SECTION_HEADER_CLASSES}>Flash your CANShift dash</h2>
+        <h2 className={SECTION_HEADER_CLASSES}>Flash your ESP32</h2>
         <p className="text-sm leading-relaxed text-text-dim">
           The same flow covers a first flash, a normal update, and recovery from a broken
           update.

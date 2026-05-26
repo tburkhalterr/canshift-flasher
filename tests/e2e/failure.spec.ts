@@ -8,7 +8,7 @@ test.describe('sim failure flow', () => {
     // useAutoConnect promotes idle → ready via microtask in sim mode.
     // Wait for ready, then trigger the flash.
     await expect(
-      page.getByRole('img', { name: 'CANShift dash connected, ready to flash' }),
+      page.getByRole('img', { name: 'ESP32 connected, ready to flash' }),
     ).toBeVisible()
 
     await page.getByRole('button', { name: 'Flash latest' }).click()
@@ -16,7 +16,7 @@ test.describe('sim failure flow', () => {
     // --- FailedView appears once sim throws (~1-2s after partial progress). ---
 
     await expect(
-      page.getByRole('img', { name: 'CANShift dash flash failed' }),
+      page.getByRole('img', { name: 'ESP32 flash failed' }),
     ).toBeVisible({ timeout: 8_000 })
 
     // "Flash failed" heading + sim's hardcoded failure string. The same line

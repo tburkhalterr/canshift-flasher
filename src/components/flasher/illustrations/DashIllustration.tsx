@@ -9,11 +9,11 @@ interface DashIllustrationProps {
 }
 
 const VARIANT_LABELS: Record<DashVariant, string> = {
-  idle: 'CANShift dash awaiting USB connection',
-  ready: 'CANShift dash connected, ready to flash',
-  flashing: 'CANShift dash being flashed',
-  success: 'CANShift dash successfully flashed',
-  failed: 'CANShift dash flash failed',
+  idle: 'ESP32 awaiting USB connection',
+  ready: 'ESP32 connected, ready to flash',
+  flashing: 'ESP32 being flashed',
+  success: 'ESP32 successfully flashed',
+  failed: 'ESP32 flash failed',
 }
 
 // Tailwind text colour driving `currentColor` on every stroke.

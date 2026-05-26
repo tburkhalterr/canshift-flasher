@@ -44,7 +44,7 @@ export const FailedView = ({
         <p className="font-mono text-sm text-text-dim">{errorMessage ?? 'Unknown error'}</p>
         <p className="text-sm leading-relaxed text-text-muted">
           If retry keeps failing: check the USB cable, try a different USB port, and reboot
-          the dash before retrying.
+          the ESP32 before retrying.
         </p>
       </div>
 

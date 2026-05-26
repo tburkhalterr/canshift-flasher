@@ -5,7 +5,7 @@ const TOPIC_TITLES: readonly string[] = [
   'No port shown when I click Connect',
   '"Flash ID is ffffff"',
   '"Could not enter ESP32 bootloader"',
-  "Flash succeeds but dash doesn't boot",
+  "Flash succeeds but ESP32 doesn't boot",
   'Browser says "not supported"',
   '"SHA-256 mismatch"',
 ]

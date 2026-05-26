@@ -78,7 +78,7 @@ export const SuccessView = ({
 
       <div className="space-y-3">
         <StepCard step={1} icon={<WifiOffIcon />} title="Disconnect from your home WiFi">
-          The dash hosts its own network — your laptop has to leave the usual one first.
+          The ESP32 hosts its own network — your laptop has to leave the usual one first.
         </StepCard>
         <StepCard
           step={2}
@@ -90,7 +90,7 @@ export const SuccessView = ({
         </StepCard>
         <StepCard step={3} icon={<GlobeIcon />} title={`Open ${DASH_HOSTNAME} in your browser`}>
           Type <span className="font-mono text-text">{DASH_HOSTNAME}</span> into the address
-          bar to reach Studio on the dash.
+          bar to reach Studio on the ESP32.
         </StepCard>
       </div>
 

@@ -148,7 +148,7 @@ const TOPICS: readonly Topic[] = [
     icon: <UsbIcon />,
     answer: (
       <ul className="list-disc space-y-1 pl-5">
-        <li>Confirm the dash is plugged in directly via USB — avoid passive hubs.</li>
+        <li>Confirm the ESP32 is plugged in directly via USB — avoid passive hubs.</li>
         <li>
           Use a USB <em>data</em> cable, not a charge-only cable. Try a known-good cable first.
         </li>
@@ -156,7 +156,7 @@ const TOPICS: readonly Topic[] = [
           On macOS, allow browser access to USB devices in System Settings &gt; Privacy &amp;
           Security.
         </li>
-        <li>The dash uses a CP210x or CH340 USB bridge — driver-less on modern OSes.</li>
+        <li>The ESP32 uses a CP210x or CH340 USB bridge — driver-less on modern OSes.</li>
       </ul>
     ),
   },
@@ -165,8 +165,8 @@ const TOPICS: readonly Topic[] = [
     icon: <ChipIcon />,
     answer: (
       <p>
-        The ESP32 is not responding in bootloader mode. Unplug the dash, hold the BOOT button (if
-        present), re-plug, then retry. If the dash has no BOOT button, just re-plug and retry — the
+        The ESP32 is not responding in bootloader mode. Unplug the ESP32, hold the BOOT button (if
+        present), re-plug, then retry. If the ESP32 has no BOOT button, just re-plug and retry — the
         flasher will assert the reset/boot lines automatically.
       </p>
     ),
@@ -177,17 +177,17 @@ const TOPICS: readonly Topic[] = [
     answer: (
       <p>
         Same root cause as Flash ID ffffff — the auto-reset sequence did not bring the chip into
-        download mode. Try a different USB port, a different cable, and re-plug the dash before
-        retrying. If the dash exposes a BOOT button, hold it while clicking Flash.
+        download mode. Try a different USB port, a different cable, and re-plug the ESP32 before
+        retrying. If the ESP32 exposes a BOOT button, hold it while clicking Flash.
       </p>
     ),
   },
   {
-    question: "Flash succeeds but dash doesn't boot",
+    question: "Flash succeeds but ESP32 doesn't boot",
     icon: <PowerIcon />,
     answer: (
       <ul className="list-disc space-y-1 pl-5">
-        <li>Unplug for 5 seconds, then re-plug. The dash auto-resets on boot.</li>
+        <li>Unplug for 5 seconds, then re-plug. The ESP32 auto-resets on boot.</li>
         <li>
           Connect to the <span className="font-mono">{DASH_AP_SSID}</span> WiFi access point and
           open <span className="font-mono">{DASH_HOSTNAME}</span> in your browser.
@@ -205,7 +205,7 @@ const TOPICS: readonly Topic[] = [
     answer: (
       <p>
         Web Serial is Chromium-only. Use Chrome, Edge, Brave, Arc, or Opera. Safari and Firefox do
-        not implement the spec and will never see the dash.
+        not implement the spec and will never see the ESP32.
       </p>
     ),
   },
