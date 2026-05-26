@@ -33,7 +33,8 @@ export const IdleView = ({
   onLocalFirmwareChange,
 }: IdleViewProps): ReactElement => {
   const initialChannel = useMemo(() => readDefaultChannel(), [])
-  const { channel, setChannel, releases, loading, error } = useReleaseChannel(initialChannel)
+  const { channel, setChannel, releases, loading, error } =
+    useReleaseChannel(initialChannel)
 
   const selectedTag = advanced.versionOverride ?? ''
 
