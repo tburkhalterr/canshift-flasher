@@ -404,7 +404,9 @@ describe('useFlasher state machine', () => {
     })
 
     // Drive the test rAF cadence by hand so we can fire callbacks between frames.
-    vi.useFakeTimers()
+    // Avoid `vi.useFakeTimers()` — it stalls `vi.waitFor`'s internal polling and
+    // makes the test flake on CI (the local microtask happens to satisfy the
+    // condition without polling, but CI hits the timer path).
     const rafCallbacks: FrameRequestCallback[] = []
     const rafSpy = vi
       .spyOn(globalThis, 'requestAnimationFrame')
@@ -416,7 +418,7 @@ describe('useFlasher state machine', () => {
       /* tests drain by invoking callbacks directly */
     })
 
-    downloadSpy.mockResolvedValue({ bytes: new Uint8Array([1]), size: 1 })
+    downloadSpy.mockResolvedValue(makeBundleResult(new Uint8Array([1])))
 
     // Hold flashFirmware open so we can fire many onProgress callbacks before
     // the success transition lands and we lose the chance to observe coalescing.
@@ -490,8 +492,6 @@ describe('useFlasher state machine', () => {
     act(() => {
       resolveFlash?.()
     })
-
-    vi.useRealTimers()
   })
 
   it('clears errorClass back to null when a fresh flash starts', async () => {
