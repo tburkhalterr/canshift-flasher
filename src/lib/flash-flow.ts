@@ -5,15 +5,22 @@
 // beyond the callbacks the caller passes — keeps the unit boundary clear
 // and lets each piece be tested independently of the React state machine.
 
-import { FIRMWARE_URL } from '../constants'
-
 import {
-  downloadFirmware,
   downloadFirmwareBundle,
+  FirmwareDownloadError,
   type FirmwareDownloadProgress,
 } from './firmware'
 import { verifyFirmwareDigest, verifyFirmwareSha256 } from './integrity'
 import { fetchReleaseByTag, type Release } from './releases'
+
+/**
+ * User-facing message thrown when the GitHub Releases lookup yields nothing
+ * usable. Directs the user to the local-file upload section in IdleView
+ * (`LocalFirmwareInput`). Exported so tests can assert against the exact
+ * string without duplicating it.
+ */
+export const NO_RELEASE_NO_LOCAL_FIRMWARE_MESSAGE =
+  "Could not fetch a firmware release from GitHub and no local firmware is loaded. Use the 'Or flash a local file' option to upload the .bin manually."
 
 export interface AcquireResult {
   firmwareBytes: Uint8Array
@@ -40,7 +47,8 @@ export interface AcquireCallbacks {
  *
  * If `versionOverride` is non-empty, hit the by-tag endpoint regardless of
  * what was cached on mount. Otherwise return the already-fetched release —
- * `null` is fine; the acquire step falls back to `FIRMWARE_URL`.
+ * `null` is fine; the acquire step throws with a hint to use the local-file
+ * option (`LocalFirmwareInput`) in that case (REF-11 / #137).
  */
 export const resolveActiveRelease = async (
   cachedRelease: Release | null,
@@ -53,9 +61,12 @@ export const resolveActiveRelease = async (
 }
 
 /**
- * Download the firmware (and optional SPIFFS) bytes for `release`. Falls back
- * to the static `FIRMWARE_URL` when release metadata is unavailable or has no
- * matching merged asset.
+ * Download the firmware (and optional SPIFFS) bytes for `release`. Throws
+ * `FirmwareDownloadError` when the release is missing or lacks a merged
+ * firmware asset — the user is then directed to the local-file upload
+ * option in `LocalFirmwareInput`. The legacy static `FIRMWARE_URL` fallback
+ * was removed in REF-11 (#137); local-firmware (#182, #193) covers the
+ * "GitHub unreachable" case with proper SHA-256 verification.
  */
 export const acquirePayload = async (
   release: Release | null,
@@ -63,62 +74,35 @@ export const acquirePayload = async (
   callbacks: AcquireCallbacks,
 ): Promise<AcquireResult> => {
   const { onProgress, onLog } = callbacks
-  const firmwareUrl = release?.firmwareAsset?.url ?? null
-  const useBundle = release !== null && firmwareUrl !== null
+  const firmwareAsset = release?.firmwareAsset ?? null
 
-  if (!release) {
-    console.warn('Release metadata unavailable — falling back to FIRMWARE_URL.')
-    onLog('Release metadata unavailable — falling back to static URL.\n')
-  } else if (!firmwareUrl) {
-    console.warn(
-      'Latest release has no firmware asset matching the merged image pattern — falling back to FIRMWARE_URL.',
-    )
-    onLog('Latest release missing firmware asset — falling back to static URL.\n')
+  if (!release || !firmwareAsset) {
+    throw new FirmwareDownloadError(NO_RELEASE_NO_LOCAL_FIRMWARE_MESSAGE)
   }
 
-  if (useBundle && release.firmwareAsset) {
-    if (release.spiffsAsset) {
-      onLog(`Downloading firmware v${release.version} + SPIFFS...\n`)
-    } else {
-      onLog(`Downloading firmware v${release.version}...\n`)
-    }
-    const bundle = await downloadFirmwareBundle(
-      release,
-      (p) => {
-        onProgress({ firmware: p.firmware ?? null, spiffs: p.spiffs })
-      },
-      signal,
-    )
-    onLog(`Downloaded firmware ${bundle.firmware.bytes.byteLength} bytes.\n`)
-    if (bundle.spiffs) {
-      onLog(`Downloaded SPIFFS ${bundle.spiffs.bytes.byteLength} bytes.\n`)
-    }
-    return {
-      firmwareBytes: bundle.firmware.bytes,
-      firmwareManifestUrl: bundle.firmwareManifestUrl,
-      firmwareExpectedSha256: release.firmwareAsset.expectedSha256,
-      spiffsBytes: bundle.spiffs?.bytes ?? null,
-      spiffsManifestUrl: bundle.spiffsManifestUrl,
-      spiffsExpectedSha256: release.spiffsAsset?.expectedSha256 ?? null,
-    }
+  if (release.spiffsAsset) {
+    onLog(`Downloading firmware v${release.version} + SPIFFS...\n`)
+  } else {
+    onLog(`Downloading firmware v${release.version}...\n`)
   }
-
-  onLog('Downloading firmware...\n')
-  const { bytes } = await downloadFirmware(
-    FIRMWARE_URL,
-    (dl) => {
-      onProgress({ firmware: dl, spiffs: null })
+  const bundle = await downloadFirmwareBundle(
+    release,
+    (p) => {
+      onProgress({ firmware: p.firmware ?? null, spiffs: p.spiffs })
     },
     signal,
   )
-  onLog(`Downloaded ${bytes.byteLength} bytes.\n`)
+  onLog(`Downloaded firmware ${bundle.firmware.bytes.byteLength} bytes.\n`)
+  if (bundle.spiffs) {
+    onLog(`Downloaded SPIFFS ${bundle.spiffs.bytes.byteLength} bytes.\n`)
+  }
   return {
-    firmwareBytes: bytes,
-    firmwareManifestUrl: `${FIRMWARE_URL}.sha256`,
-    firmwareExpectedSha256: null,
-    spiffsBytes: null,
-    spiffsManifestUrl: null,
-    spiffsExpectedSha256: null,
+    firmwareBytes: bundle.firmware.bytes,
+    firmwareManifestUrl: bundle.firmwareManifestUrl,
+    firmwareExpectedSha256: firmwareAsset.expectedSha256,
+    spiffsBytes: bundle.spiffs?.bytes ?? null,
+    spiffsManifestUrl: bundle.spiffsManifestUrl,
+    spiffsExpectedSha256: release.spiffsAsset?.expectedSha256 ?? null,
   }
 }
 

@@ -9,9 +9,10 @@ export interface UseLatestReleaseResult {
 }
 
 /**
- * Fire-and-forget release metadata fetch on mount. The flash flow doesn't
- * block on this — a failed lookup falls back to FIRMWARE_URL — but having
- * the version + notes ready in `idle` state is the whole point of #14.
+ * Fire-and-forget release metadata fetch on mount. A failed lookup leaves
+ * `release` null — the flash flow then throws and directs the user to the
+ * local-file upload (`LocalFirmwareInput`) per REF-11 (#137). Having the
+ * version + notes ready in `idle` state is the whole point of #14.
  *
  * Returns both the reactive value (for rendering) and a ref (so async
  * callbacks can read the current value without forcing rebinding).

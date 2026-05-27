@@ -88,22 +88,62 @@ const fireDisconnect = (listeners: RegisteredListener[], target: SerialPort): vo
   }
 }
 
+/**
+ * Minimal fake Release the state-machine tests can hand to the flasher.
+ * The static `FIRMWARE_URL` fallback was removed in REF-11 (#137), so every
+ * test that exercises the network-fetch path now needs a release object —
+ * `acquirePayload(null, ...)` throws by design.
+ */
+const makeFakeRelease = (): releases.Release => ({
+  version: '1.0.0',
+  tag: 'v1.0.0',
+  publishedAt: '2025-01-01T00:00:00Z',
+  notes: '',
+  prerelease: false,
+  htmlUrl: 'https://github.com/tburkhalterr/CANShift/releases/tag/v1.0.0',
+  firmwareAsset: {
+    url: 'https://api.github.com/repos/tburkhalterr/CANShift/releases/assets/1',
+    sizeBytes: 3,
+    expectedSha256: null,
+    sha256Url: 'https://api.github.com/repos/tburkhalterr/CANShift/releases/assets/2',
+  },
+  spiffsAsset: null,
+})
+
+/**
+ * Build a successful `downloadFirmwareBundle` resolved value for a given byte
+ * buffer. REF-11 (#137) routed every flash through the bundle path — the
+ * legacy `downloadFirmware` direct call is gone.
+ */
+const makeBundleResult = (bytes: Uint8Array): firmware.FirmwareBundle => ({
+  firmware: { bytes, size: bytes.byteLength },
+  firmwareManifestUrl:
+    'https://api.github.com/repos/tburkhalterr/CANShift/releases/assets/2',
+  spiffs: null,
+  spiffsManifestUrl: null,
+})
+
 describe('useFlasher state machine', () => {
   let downloadSpy: ReturnType<typeof vi.spyOn>
   let flashSpy: ReturnType<typeof vi.spyOn>
 
   beforeEach(() => {
-    downloadSpy = vi.spyOn(firmware, 'downloadFirmware')
+    // REF-11 (#137): the static FIRMWARE_URL fallback was removed, so the
+    // hook now always goes through `downloadFirmwareBundle`. Spy on the bundle
+    // entry point — `downloadFirmware` is only called internally by the bundle
+    // helper and a module-local spy wouldn't intercept that call.
+    downloadSpy = vi.spyOn(firmware, 'downloadFirmwareBundle')
     flashSpy = vi.spyOn(esptool, 'flashFirmware')
-    // Bypass the SHA-256 gate and the GitHub Releases lookup so tests can
-    // focus on the state-machine wiring. Real integrity behaviour is covered
-    // by lib/integrity tests; real release-fetch behaviour by lib/releases.
+    // Bypass the SHA-256 gate so tests can focus on the state-machine wiring.
+    // Real integrity behaviour is covered by lib/integrity tests; real
+    // release-fetch behaviour by lib/releases.
     vi.spyOn(integrity, 'verifyFirmwareSha256').mockResolvedValue(
       '0000000000000000000000000000000000000000000000000000000000000000',
     )
-    vi.spyOn(releases, 'fetchLatestRelease').mockRejectedValue(
-      new Error('test: release lookup disabled'),
-    )
+    // REF-11 (#137): the bundle path requires a release with a firmware
+    // asset. Tests that need to exercise the "no release" path mock this
+    // individually.
+    vi.spyOn(releases, 'fetchLatestRelease').mockResolvedValue(makeFakeRelease())
   })
 
   afterEach(() => {
@@ -116,7 +156,7 @@ describe('useFlasher state machine', () => {
       requestPort: vi.fn().mockResolvedValue(port),
     })
 
-    downloadSpy.mockResolvedValue({ bytes: new Uint8Array([1, 2, 3]), size: 3 })
+    downloadSpy.mockResolvedValue(makeBundleResult(new Uint8Array([1, 2, 3])))
     flashSpy.mockResolvedValue(undefined)
 
     const { result } = renderHook(() => useFlasher())
@@ -148,7 +188,7 @@ describe('useFlasher state machine', () => {
       requestPort: vi.fn().mockResolvedValue(port),
     })
 
-    downloadSpy.mockResolvedValue({ bytes: new Uint8Array([1]), size: 1 })
+    downloadSpy.mockResolvedValue(makeBundleResult(new Uint8Array([1])))
     flashSpy.mockRejectedValue(new Error('esptool exploded'))
 
     const { result } = renderHook(() => useFlasher())
@@ -290,7 +330,7 @@ describe('useFlasher state machine', () => {
       requestPort: vi.fn().mockResolvedValue(port),
     })
 
-    downloadSpy.mockResolvedValue({ bytes: new Uint8Array([1]), size: 1 })
+    downloadSpy.mockResolvedValue(makeBundleResult(new Uint8Array([1])))
     // FlashIdError is one of the typed buckets in `classifyError`; use a
     // generic Error here to assert the default fallback bucket is still
     // attached to the FlasherStatus. `'unknown'` matches the regex-fallback
@@ -319,7 +359,7 @@ describe('useFlasher state machine', () => {
       requestPort: vi.fn().mockResolvedValue(port),
     })
 
-    downloadSpy.mockResolvedValue({ bytes: new Uint8Array([1]), size: 1 })
+    downloadSpy.mockResolvedValue(makeBundleResult(new Uint8Array([1])))
     // Hold `flashFirmware` pending so we can synthesise a disconnect event
     // while the hook is still in `flashing`. The hook resolves the failed
     // state from the disconnect handler — we never settle this promise.
@@ -358,7 +398,7 @@ describe('useFlasher state machine', () => {
       requestPort: vi.fn().mockResolvedValue(port),
     })
 
-    downloadSpy.mockResolvedValue({ bytes: new Uint8Array([1]), size: 1 })
+    downloadSpy.mockResolvedValue(makeBundleResult(new Uint8Array([1])))
     flashSpy.mockRejectedValueOnce(new Error('first run blew up'))
 
     const { result } = renderHook(() => useFlasher())
