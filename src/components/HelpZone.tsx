@@ -181,7 +181,11 @@ export const HelpZone = ({ onClose }: HelpZoneProps = {}): ReactElement => {
       ) : null}
 
       <p className="mt-4 text-text-muted">
-        Need more help? Open an issue on{' '}
+        Read the{' '}
+        <a href="/docs/" className="underline-offset-4 hover:underline">
+          full documentation
+        </a>{' '}
+        or open an issue on{' '}
         <a
           href="https://github.com/tburkhalterr/canshift-flasher/issues"
           target="_blank"

@@ -95,14 +95,22 @@ export function App(): ReactElement {
       </div>
 
       <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-2 text-xs text-text-muted sm:px-6">
-        <a
-          href={FLASHER_REPO_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="underline-offset-4 hover:text-text hover:underline"
-        >
-          tburkhalterr/canshift-flasher
-        </a>
+        <div className="flex flex-wrap items-center gap-3">
+          <a
+            href="/docs/"
+            className="underline-offset-4 hover:text-text hover:underline"
+          >
+            Documentation
+          </a>
+          <a
+            href={FLASHER_REPO_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="underline-offset-4 hover:text-text hover:underline"
+          >
+            tburkhalterr/canshift-flasher
+          </a>
+        </div>
         <a
           href={`${FLASHER_REPO_URL}/commit/${BUILD_SHA}`}
           target="_blank"
