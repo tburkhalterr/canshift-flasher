@@ -1,0 +1,105 @@
+{
+  "_comment": "Cruise layout — minimal road-trip view: big speed, fuel level, battery. Odometer signal isn't in the baseline catalog so it's left out for now; swap in the placeholder gauge below for it once your signals.json exposes one.",
+  "version": "1.0.0",
+  "name": "Cruise",
+  "description": "Speed + fuel + battery — minimal road layout (WIP: odometer placeholder pending signal catalog support, edit in Studio)",
+  "defaultPageId": "cruise",
+  "revLimitRpm": 6500,
+  "topBar": {
+    "height": 16,
+    "bgColor": "#0D0D0D",
+    "textColor": "#AAAAAA",
+    "layout": [
+      { "type": "statusDot", "signal": "any", "position": "left" },
+      { "type": "label", "text": "CRUISE", "position": "left" },
+      { "type": "bleIcon", "position": "right" },
+      { "type": "separator", "position": "right" },
+      { "type": "themeToggle", "position": "right" }
+    ]
+  },
+  "pages": [
+    {
+      "id": "cruise",
+      "backgroundImage": null,
+      "backgroundColor": "#000000",
+      "showTopBar": true,
+      "widgets": [
+        {
+          "id": "speed_cruise",
+          "type": "gauge",
+          "signal": "speed_kph",
+          "layout": { "x": 0, "y": 0, "w": 320, "h": 168, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FFFFFF",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 64
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "iconName": "speed",
+            "minValue": 0,
+            "maxValue": 260,
+            "dangerLevel": 250,
+            "decimalPlaces": 0,
+            "label": "Speed",
+            "labelPosition": "bottom-center"
+          }
+        },
+        {
+          "id": "fuel_cruise",
+          "type": "gauge",
+          "signal": "fuel_level_pct",
+          "layout": { "x": 0, "y": 168, "w": 160, "h": 56, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FBC02D",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 22
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "bar",
+            "iconName": "fuel",
+            "minValue": 0,
+            "maxValue": 100,
+            "dangerLevel": 10,
+            "decimalPlaces": 0,
+            "label": "Fuel",
+            "labelPosition": "bottom-left"
+          }
+        },
+        {
+          "id": "battery_cruise",
+          "type": "gauge",
+          "signal": "battery_volts",
+          "layout": { "x": 160, "y": 168, "w": 160, "h": 56, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#44AAFF",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 22
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "iconName": "battery",
+            "minValue": 10,
+            "maxValue": 15,
+            "dangerLevel": 11,
+            "decimalPlaces": 1,
+            "label": "Battery",
+            "labelPosition": "bottom-left"
+          }
+        }
+      ]
+    }
+  ]
+}

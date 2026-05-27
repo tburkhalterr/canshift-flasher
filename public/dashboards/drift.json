@@ -1,0 +1,164 @@
+{
+  "_comment": "Drift layout — WIP. Wheel angle, handbrake state and lateral-G aren't in the baseline signal catalog yet, so this ships with RPM + throttle + battery and stub gauges using placeholder signal names. Re-bind the placeholder signals in Studio to your steering / IMU / handbrake feeds.",
+  "version": "1.0.0",
+  "name": "Drift",
+  "description": "WIP — placeholder layout (steering / handbrake / lateral-G signals not in catalog yet, edit in Studio)",
+  "defaultPageId": "drift",
+  "revLimitRpm": 8000,
+  "topBar": {
+    "height": 16,
+    "bgColor": "#0D0D0D",
+    "textColor": "#AAAAAA",
+    "layout": [
+      { "type": "statusDot", "signal": "any", "position": "left" },
+      { "type": "label", "text": "DRIFT", "position": "left" },
+      { "type": "themeToggle", "position": "right" }
+    ]
+  },
+  "pages": [
+    {
+      "id": "drift",
+      "backgroundImage": null,
+      "backgroundColor": "#000000",
+      "showTopBar": true,
+      "widgets": [
+        {
+          "id": "rpm_drift_arc",
+          "type": "gauge",
+          "signal": "rpm",
+          "layout": { "x": 0, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FF4444",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 28
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "arc",
+            "iconName": "rpm",
+            "minValue": 0,
+            "maxValue": 8500,
+            "dangerLevel": 7800,
+            "decimalPlaces": 0,
+            "label": "RPM",
+            "labelPosition": "bottom-left",
+            "revFlash": true
+          }
+        },
+        {
+          "id": "throttle_drift_arc",
+          "type": "gauge",
+          "signal": "throttle_pos",
+          "layout": { "x": 160, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FB8C00",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 22
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "arc",
+            "iconName": "throttle",
+            "minValue": 0,
+            "maxValue": 100,
+            "dangerLevel": 95,
+            "decimalPlaces": 0,
+            "label": "TPS",
+            "labelPosition": "bottom-left"
+          }
+        },
+        {
+          "id": "steering_drift",
+          "type": "gauge",
+          "signal": "steering_angle_deg",
+          "layout": { "x": 0, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#44AAFF",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 22
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "minValue": -540,
+            "maxValue": 540,
+            "dangerLevel": 500,
+            "decimalPlaces": 0,
+            "label": "Steer",
+            "labelPosition": "bottom-left",
+            "suffix": "°"
+          }
+        },
+        {
+          "id": "lateral_g_drift",
+          "type": "gauge",
+          "signal": "lateral_g",
+          "layout": { "x": 160, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FFFFFF",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 22
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "minValue": -2,
+            "maxValue": 2,
+            "dangerLevel": 1.8,
+            "decimalPlaces": 2,
+            "label": "Lat G",
+            "labelPosition": "bottom-left"
+          }
+        },
+        {
+          "id": "handbrake_drift",
+          "type": "warning",
+          "signal": "handbrake_engaged",
+          "layout": { "x": 0, "y": 168, "w": 160, "h": 56, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FF4444",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 20
+          },
+          "config": {
+            "type": "warning",
+            "threshold": 1,
+            "iconName": "brake",
+            "label": "Hand",
+            "labelPosition": "bottom-left"
+          }
+        },
+        {
+          "id": "gear_drift",
+          "type": "gear",
+          "signal": "gear",
+          "layout": { "x": 160, "y": 168, "w": 160, "h": 56, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FF4444",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 32
+          },
+          "config": { "type": "gear", "decimalPlaces": 0, "label": "Gear", "labelPosition": "bottom-left" }
+        }
+      ]
+    }
+  ]
+}

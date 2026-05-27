@@ -1,0 +1,42 @@
+[
+  {
+    "slug": "blank",
+    "name": "Skip — push my own layout via Studio",
+    "pagesCount": 1,
+    "widgetCount": 0,
+    "recommendedFor": "Anyone planning to design their own dashboard in Studio.",
+    "description": "Start fresh — build it in Studio"
+  },
+  {
+    "slug": "track-day",
+    "name": "Track Day",
+    "pagesCount": 1,
+    "widgetCount": 6,
+    "recommendedFor": "Track / time-attack drivers who need lap timer, gear and fluid temps at a glance.",
+    "description": "Lap timer + gear + water/oil + battery + RPM bar — designed for session driving"
+  },
+  {
+    "slug": "drift",
+    "name": "Drift",
+    "pagesCount": 1,
+    "widgetCount": 6,
+    "recommendedFor": "Drift cars with steering-angle / lateral-G / handbrake sensors plumbed into CAN.",
+    "description": "WIP — placeholder layout (steering / handbrake / lateral-G signals not in catalog yet, edit in Studio)"
+  },
+  {
+    "slug": "cruise",
+    "name": "Cruise",
+    "pagesCount": 1,
+    "widgetCount": 3,
+    "recommendedFor": "Street / road-trip use where speed + fuel + battery is all you need.",
+    "description": "Speed + fuel + battery — minimal road layout (WIP: odometer pending signal catalog, edit in Studio)"
+  },
+  {
+    "slug": "dyno",
+    "name": "Dyno",
+    "pagesCount": 1,
+    "widgetCount": 6,
+    "recommendedFor": "Tuners running engine pulls — RPM front-and-centre with boost / AFR / ECT / TPS / IAT bars.",
+    "description": "RPM arc + boost arc + AFR / ECT / TPS / IAT bars — tuning cell layout"
+  }
+]

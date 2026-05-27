@@ -1,0 +1,178 @@
+{
+  "_comment": "Dyno layout — single page focused on tuning telemetry: large RPM arc plus boost, AFR, ECT, TPS as horizontal bars.",
+  "version": "1.0.0",
+  "name": "Dyno",
+  "description": "RPM arc + boost / AFR / ECT / TPS bars — built for the dyno cell",
+  "defaultPageId": "dyno",
+  "revLimitRpm": 8500,
+  "topBar": {
+    "height": 16,
+    "bgColor": "#0D0D0D",
+    "textColor": "#AAAAAA",
+    "layout": [
+      { "type": "statusDot", "signal": "any", "position": "left" },
+      { "type": "label", "text": "DYNO", "position": "left" },
+      { "type": "modeFlag", "signal": "flag_anti_lag", "text": "ALS", "position": "center" },
+      { "type": "separator", "position": "center" },
+      { "type": "modeFlag", "signal": "flag_launch_ctrl", "text": "LC", "position": "center" },
+      { "type": "themeToggle", "position": "right" }
+    ]
+  },
+  "pages": [
+    {
+      "id": "dyno",
+      "backgroundImage": null,
+      "backgroundColor": "#000000",
+      "showTopBar": true,
+      "widgets": [
+        {
+          "id": "rpm_dyno_arc",
+          "type": "gauge",
+          "signal": "rpm",
+          "layout": { "x": 0, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FF4444",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 28
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "arc",
+            "iconName": "rpm",
+            "minValue": 0,
+            "maxValue": 9000,
+            "dangerLevel": 8200,
+            "decimalPlaces": 0,
+            "label": "RPM",
+            "labelPosition": "bottom-left",
+            "revFlash": true
+          }
+        },
+        {
+          "id": "boost_dyno_arc",
+          "type": "gauge",
+          "signal": "map_kpa",
+          "layout": { "x": 160, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FF8800",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 22
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "arc",
+            "iconName": "boost",
+            "minValue": 0,
+            "maxValue": 300,
+            "dangerLevel": 270,
+            "decimalPlaces": 0,
+            "label": "Boost",
+            "labelPosition": "bottom-left"
+          }
+        },
+        {
+          "id": "afr_dyno_bar",
+          "type": "bar",
+          "signal": "lambda_1",
+          "layout": { "x": 0, "y": 112, "w": 320, "h": 28, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#44CC88",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 18
+          },
+          "config": {
+            "type": "bar",
+            "iconName": "afr",
+            "minValue": 0.7,
+            "maxValue": 1.3,
+            "dangerLevel": 1.15,
+            "decimalPlaces": 2,
+            "label": "Lambda",
+            "labelPosition": "top-center"
+          }
+        },
+        {
+          "id": "ect_dyno_bar",
+          "type": "bar",
+          "signal": "coolant_temp_c",
+          "layout": { "x": 0, "y": 140, "w": 320, "h": 28, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#44AAFF",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 18
+          },
+          "config": {
+            "type": "bar",
+            "iconName": "coolant",
+            "minValue": 0,
+            "maxValue": 120,
+            "dangerLevel": 105,
+            "decimalPlaces": 0,
+            "label": "ECT",
+            "labelPosition": "top-center"
+          }
+        },
+        {
+          "id": "tps_dyno_bar",
+          "type": "bar",
+          "signal": "throttle_pos",
+          "layout": { "x": 0, "y": 168, "w": 320, "h": 28, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FB8C00",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 18
+          },
+          "config": {
+            "type": "bar",
+            "iconName": "throttle",
+            "minValue": 0,
+            "maxValue": 100,
+            "dangerLevel": 95,
+            "decimalPlaces": 0,
+            "label": "TPS",
+            "labelPosition": "top-center"
+          }
+        },
+        {
+          "id": "iat_dyno_bar",
+          "type": "bar",
+          "signal": "iat_c",
+          "layout": { "x": 0, "y": 196, "w": 320, "h": 28, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FFFFFF",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 18
+          },
+          "config": {
+            "type": "bar",
+            "iconName": "iat",
+            "minValue": -20,
+            "maxValue": 80,
+            "dangerLevel": 60,
+            "decimalPlaces": 0,
+            "label": "IAT",
+            "labelPosition": "top-center"
+          }
+        }
+      ]
+    }
+  ]
+}
