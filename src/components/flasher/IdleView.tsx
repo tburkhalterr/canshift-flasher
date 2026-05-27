@@ -3,11 +3,13 @@ import type { ReactElement } from 'react'
 
 import type { AdvancedOptions } from '../../hooks/useFlasher'
 import type { UseReleaseChannelResult } from '../../hooks/useReleaseChannel'
+import { type SelectedDashboardLayout } from '../../lib/dashboards/catalog'
 import { type LocalFirmware } from '../../lib/local-firmware'
 import { type SelectedEcuProfile } from '../../lib/profiles/catalog'
 import { type Release } from '../../lib/releases'
 
 import { ChannelPicker } from './ChannelPicker'
+import { DashboardLayoutPicker } from './DashboardLayoutPicker'
 import { EcuProfilePicker } from './EcuProfilePicker'
 import { ErrorBanner } from './ErrorBanner'
 import { DashIllustration } from './illustrations/DashIllustration'
@@ -26,6 +28,8 @@ interface IdleViewProps {
   channelState: UseReleaseChannelResult
   ecuProfile: SelectedEcuProfile | null
   onEcuProfileChange: (profile: SelectedEcuProfile | null) => void
+  dashboardLayout: SelectedDashboardLayout | null
+  onDashboardLayoutChange: (layout: SelectedDashboardLayout | null) => void
 }
 
 export const IdleView = ({
@@ -39,6 +43,8 @@ export const IdleView = ({
   channelState,
   ecuProfile,
   onEcuProfileChange,
+  dashboardLayout,
+  onDashboardLayoutChange,
 }: IdleViewProps): ReactElement => {
   const { channel, setChannel, releases, loading, error } = channelState
   const selectedTag = advanced.versionOverride ?? ''
@@ -89,11 +95,22 @@ export const IdleView = ({
         onChange={onEcuProfileChange}
       />
 
+      <DashboardLayoutPicker
+        selectedSlug={dashboardLayout?.slug ?? null}
+        onChange={onDashboardLayoutChange}
+      />
+
       <button
         type="button"
         onClick={onConnect}
-        disabled={!ecuProfile}
-        title={ecuProfile ? undefined : 'Pick an ECU profile first'}
+        disabled={!ecuProfile || !dashboardLayout}
+        title={
+          !ecuProfile
+            ? 'Pick an ECU profile first'
+            : !dashboardLayout
+              ? 'Pick a dashboard layout first'
+              : undefined
+        }
         className={`w-full sm:w-auto ${PRIMARY_CTA_CLASSES} py-3 text-base font-semibold`}
       >
         Connect

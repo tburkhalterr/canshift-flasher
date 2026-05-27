@@ -37,6 +37,8 @@ const renderStateView = (
           channelState={channelState}
           ecuProfile={flasher.ecuProfile}
           onEcuProfileChange={flasher.setEcuProfile}
+          dashboardLayout={flasher.dashboardLayout}
+          onDashboardLayoutChange={flasher.setDashboardLayout}
         />
       )
     case 'ready':
@@ -74,6 +76,7 @@ const renderStateView = (
           release={flasher.release}
           logTruncated={flasher.logTruncated}
           ecuProfile={flasher.ecuProfile}
+          dashboardLayout={flasher.dashboardLayout}
         />
       )
     case 'failed':

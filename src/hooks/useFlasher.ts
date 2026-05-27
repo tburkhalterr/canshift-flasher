@@ -6,6 +6,7 @@ import {
   SUPPORTED_USB_FILTERS,
   type AdvancedBaudRate,
 } from '../constants'
+import { type SelectedDashboardLayout } from '../lib/dashboards/catalog'
 import { flashFirmware, probeChip, type FlashProgress } from '../lib/esptool'
 import { type FirmwareDownloadProgress } from '../lib/firmware'
 import { acquirePayload, resolveActiveRelease, verifyPayload } from '../lib/flash-flow'
@@ -114,6 +115,13 @@ export interface FlasherStatus {
    * to offer a JSON download — SPIFFS injection is deferred to Phase 1b.
    */
   ecuProfile: SelectedEcuProfile | null
+  /**
+   * The dashboard layout the user picked in `DashboardLayoutPicker`. Null
+   * until the picker resolves a selection. Phase 1a: this is only used by
+   * SuccessView to offer a JSON download — SPIFFS injection (which will
+   * write both signals.json AND dashboard.json) is deferred to Phase 1b.
+   */
+  dashboardLayout: SelectedDashboardLayout | null
 }
 
 const INITIAL_STATUS: FlasherStatus = {
@@ -130,6 +138,7 @@ const INITIAL_STATUS: FlasherStatus = {
   advanced: DEFAULT_ADVANCED_OPTIONS,
   localFirmware: null,
   ecuProfile: null,
+  dashboardLayout: null,
 }
 
 export interface FlasherActions {
@@ -141,6 +150,7 @@ export interface FlasherActions {
   setAdvanced: (opts: AdvancedOptions) => void
   setLocalFirmware: (firmware: LocalFirmware | null) => void
   setEcuProfile: (profile: SelectedEcuProfile | null) => void
+  setDashboardLayout: (layout: SelectedDashboardLayout | null) => void
 }
 
 export const useFlasher = (): FlasherStatus & FlasherActions => {
@@ -254,6 +264,7 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
       advanced: prev.advanced,
       localFirmware: prev.localFirmware,
       ecuProfile: prev.ecuProfile,
+      dashboardLayout: prev.dashboardLayout,
     }))
   }, [disconnectGuard])
 
@@ -269,6 +280,10 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
 
   const setEcuProfile = useCallback((profile: SelectedEcuProfile | null) => {
     setStatus((prev) => ({ ...prev, ecuProfile: profile }))
+  }, [])
+
+  const setDashboardLayout = useCallback((layout: SelectedDashboardLayout | null) => {
+    setStatus((prev) => ({ ...prev, dashboardLayout: layout }))
   }, [])
 
   const reselectPort = useCallback(async () => {
@@ -445,6 +460,7 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
           release: prev.release,
           advanced: prev.advanced,
           ecuProfile: prev.ecuProfile,
+          dashboardLayout: prev.dashboardLayout,
         }))
         void sendTelemetry({
           outcome: 'cancelled',
@@ -512,5 +528,6 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
     setAdvanced,
     setLocalFirmware,
     setEcuProfile,
+    setDashboardLayout,
   }
 }

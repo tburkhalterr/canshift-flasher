@@ -1,0 +1,30 @@
+{
+  "_comment": "Blank dashboard — single empty page, no widgets. Ship this to a dash that will receive its real layout from Studio post-boot.",
+  "version": "1.0.0",
+  "name": "Blank",
+  "description": "Empty starter layout — one blank page, build the rest in Studio",
+  "defaultPageId": "blank",
+  "revLimitRpm": 7200,
+  "topBar": {
+    "height": 16,
+    "bgColor": "#0D0D0D",
+    "textColor": "#AAAAAA",
+    "layout": [
+      { "type": "statusDot", "signal": "any", "position": "left" },
+      { "type": "label", "text": "CAN", "position": "left" },
+      { "type": "bleIcon", "position": "right" },
+      { "type": "usbIcon", "position": "right" },
+      { "type": "separator", "position": "right" },
+      { "type": "themeToggle", "position": "right" }
+    ]
+  },
+  "pages": [
+    {
+      "id": "blank",
+      "backgroundImage": null,
+      "backgroundColor": "#000000",
+      "showTopBar": true,
+      "widgets": []
+    }
+  ]
+}

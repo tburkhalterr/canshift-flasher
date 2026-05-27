@@ -2,6 +2,10 @@
 import type { ReactElement } from 'react'
 
 import { DASH_AP_SSID, DASH_HOSTNAME } from '../../constants'
+import {
+  downloadDashboardJson,
+  type SelectedDashboardLayout,
+} from '../../lib/dashboards/catalog'
 import { downloadProfileJson, type SelectedEcuProfile } from '../../lib/profiles/catalog'
 import type { Release } from '../../lib/releases'
 import { LogStream } from '../LogStream'
@@ -19,6 +23,21 @@ interface SuccessViewProps {
   release: Release | null
   logTruncated: boolean
   ecuProfile: SelectedEcuProfile | null
+  dashboardLayout: SelectedDashboardLayout | null
+}
+
+/**
+ * A picked entry is "downloadable" when it carries actual content. The
+ * `blank` slug is the only first-class no-op — but we also defend against
+ * a picker that returns an empty signal list / zero-widget dashboard so
+ * the user is never offered a download that produces a useless file.
+ */
+const hasEcuPayload = (profile: SelectedEcuProfile | null): boolean =>
+  profile !== null && profile.slug !== 'blank' && profile.signals.signals.length > 0
+
+const hasDashboardPayload = (layout: SelectedDashboardLayout | null): boolean => {
+  if (layout === null || layout.slug === 'blank') return false
+  return layout.config.pages.some((p) => p.widgets.length > 0)
 }
 
 // Shared SVG props for the inline step icons — single colour, currentColor.
@@ -70,8 +89,12 @@ export const SuccessView = ({
   release,
   logTruncated,
   ecuProfile,
+  dashboardLayout,
 }: SuccessViewProps): ReactElement => {
   const heading = release ? `Flashed v${release.version} successfully` : 'Flashed successfully'
+  const showEcuDownload = hasEcuPayload(ecuProfile)
+  const showDashboardDownload = hasDashboardPayload(dashboardLayout)
+  const showDownloadsBlock = showEcuDownload || showDashboardDownload
   return (
     <section className="space-y-4">
       <div className="flex flex-col items-center gap-3">
@@ -105,24 +128,44 @@ export const SuccessView = ({
         </StepCard>
       </div>
 
-      {ecuProfile && ecuProfile.signals.signals.length > 0 ? (
-        <div className="space-y-2 rounded-md border border-border bg-surface-2 px-4 py-3 text-sm text-text-dim">
-          <p className="text-text">
-            Picked profile: <span className="font-mono">{ecuProfile.name}</span> (
-            {String(ecuProfile.signals.signals.length)} signals).
-          </p>
+      {showDownloadsBlock ? (
+        <div className="space-y-3 rounded-md border border-border bg-surface-2 px-4 py-3 text-sm text-text-dim">
+          {showEcuDownload && ecuProfile ? (
+            <p className="text-text">
+              Picked profile: <span className="font-mono">{ecuProfile.name}</span> (
+              {String(ecuProfile.signals.signals.length)} signals).
+            </p>
+          ) : null}
+          {showDashboardDownload && dashboardLayout ? (
+            <p className="text-text">
+              Picked layout: <span className="font-mono">{dashboardLayout.name}</span>.
+            </p>
+          ) : null}
           <p>
-            Download <span className="font-mono">signals.json</span> and upload it via Studio
-            on the dash so the ECU mapping ends up in SPIFFS. Until Phase 1b lands the flasher
-            doesn&apos;t write it for you.
+            Upload these via Studio at <span className="font-mono">/config/signals.json</span>{' '}
+            and <span className="font-mono">/config/dashboard.json</span> so they end up in
+            SPIFFS. Until Phase 1b lands the flasher doesn&apos;t write them for you.
           </p>
-          <button
-            type="button"
-            onClick={() => downloadProfileJson(ecuProfile)}
-            className={`${SECONDARY_CTA_CLASSES} py-2 text-sm font-medium`}
-          >
-            Download signals.json for {ecuProfile.name}
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {showEcuDownload && ecuProfile ? (
+              <button
+                type="button"
+                onClick={() => downloadProfileJson(ecuProfile)}
+                className={`${SECONDARY_CTA_CLASSES} py-2 text-sm font-medium`}
+              >
+                Download signals.json for {ecuProfile.name}
+              </button>
+            ) : null}
+            {showDashboardDownload && dashboardLayout ? (
+              <button
+                type="button"
+                onClick={() => downloadDashboardJson(dashboardLayout)}
+                className={`${SECONDARY_CTA_CLASSES} py-2 text-sm font-medium`}
+              >
+                Download dashboard.json for {dashboardLayout.name}
+              </button>
+            ) : null}
+          </div>
         </div>
       ) : null}
 

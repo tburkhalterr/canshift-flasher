@@ -1,0 +1,165 @@
+{
+  "_comment": "Track-day layout — single page focused on session info: lap timer, gear, fluids, battery, RPM. Designed against the 320x240 canvas.",
+  "version": "1.0.0",
+  "name": "Track Day",
+  "description": "Lap timer + gear + fluids + RPM — built for sessions on a closed course",
+  "defaultPageId": "track",
+  "revLimitRpm": 7200,
+  "topBar": {
+    "height": 16,
+    "bgColor": "#0D0D0D",
+    "textColor": "#AAAAAA",
+    "layout": [
+      { "type": "statusDot", "signal": "any", "position": "left" },
+      { "type": "label", "text": "TRACK", "position": "left" },
+      { "type": "trackBadge", "position": "right" },
+      { "type": "separator", "position": "right" },
+      { "type": "themeToggle", "position": "right" }
+    ]
+  },
+  "pages": [
+    {
+      "id": "track",
+      "backgroundImage": null,
+      "backgroundColor": "#000000",
+      "showTopBar": true,
+      "widgets": [
+        {
+          "id": "lap_timer",
+          "type": "timer",
+          "signal": "",
+          "layout": { "x": 0, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FFFFFF",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 36
+          },
+          "config": {
+            "type": "timer",
+            "autoStart": false,
+            "format": "mm:ss",
+            "label": "Lap",
+            "labelPosition": "bottom-left"
+          }
+        },
+        {
+          "id": "gear_track",
+          "type": "gear",
+          "signal": "gear",
+          "layout": { "x": 160, "y": 0, "w": 160, "h": 112, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FF4444",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 48
+          },
+          "config": { "type": "gear", "decimalPlaces": 0, "label": "Gear", "labelPosition": "bottom-left" }
+        },
+        {
+          "id": "coolant_track",
+          "type": "gauge",
+          "signal": "coolant_temp_c",
+          "layout": { "x": 0, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#44AAFF",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 22
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "iconName": "coolant",
+            "minValue": 0,
+            "maxValue": 120,
+            "dangerLevel": 105,
+            "decimalPlaces": 0,
+            "label": "Water",
+            "labelPosition": "bottom-left"
+          }
+        },
+        {
+          "id": "oil_temp_track",
+          "type": "gauge",
+          "signal": "oil_temp_c",
+          "layout": { "x": 160, "y": 112, "w": 160, "h": 56, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FF8800",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 22
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "iconName": "oil_temp",
+            "minValue": 0,
+            "maxValue": 150,
+            "dangerLevel": 130,
+            "decimalPlaces": 0,
+            "label": "Oil",
+            "labelPosition": "bottom-left"
+          }
+        },
+        {
+          "id": "battery_track",
+          "type": "gauge",
+          "signal": "battery_volts",
+          "layout": { "x": 0, "y": 168, "w": 160, "h": 56, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FBC02D",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 22
+          },
+          "config": {
+            "type": "gauge",
+            "displayStyle": "numeric",
+            "iconName": "battery",
+            "minValue": 10,
+            "maxValue": 15,
+            "dangerLevel": 11,
+            "decimalPlaces": 1,
+            "label": "Battery",
+            "labelPosition": "bottom-left"
+          }
+        },
+        {
+          "id": "rpm_track",
+          "type": "bar",
+          "signal": "rpm",
+          "layout": { "x": 160, "y": 168, "w": 160, "h": 56, "zOrder": 0 },
+          "style": {
+            "primaryColor": "#FF4444",
+            "secondaryColor": "#2A2A2A",
+            "warningColor": "#FF8800",
+            "criticalColor": "#FF4444",
+            "textColor": "#FFFFFF",
+            "fontSize": 22
+          },
+          "config": {
+            "type": "bar",
+            "iconName": "rpm",
+            "minValue": 0,
+            "maxValue": 8000,
+            "dangerLevel": 7000,
+            "decimalPlaces": 0,
+            "label": "RPM",
+            "labelPosition": "bottom-center"
+          }
+        }
+      ]
+    }
+  ]
+}
