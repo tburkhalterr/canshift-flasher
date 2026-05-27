@@ -1,6 +1,7 @@
 // src/components/flasher/FailedView.tsx
 import { useEffect, useRef, type ReactElement } from 'react'
 
+import type { ErrorClass } from '../../hooks/useFlasher'
 import type { Release } from '../../lib/releases'
 import { LogStream } from '../LogStream'
 
@@ -14,8 +15,10 @@ import {
 
 interface FailedViewProps {
   errorMessage: string | null
+  errorClass: ErrorClass | null
   onRetry: () => void
   onReset: () => void
+  onReselectPort: () => Promise<void> | void
   log: string
   chipInfo: string | null
   port: SerialPort | null
@@ -25,19 +28,27 @@ interface FailedViewProps {
 
 export const FailedView = ({
   errorMessage,
+  errorClass,
   onRetry,
   onReset,
+  onReselectPort,
   log,
   chipInfo,
   port,
   release,
   logTruncated,
 }: FailedViewProps): ReactElement => {
-  const retryRef = useRef<HTMLButtonElement>(null)
+  const primaryCtaRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
-    retryRef.current?.focus()
+    primaryCtaRef.current?.focus()
   }, [])
+
+  // Mid-flash USB disconnect: the cached `portRef` in useFlasher is now a
+  // dead handle, so calling `flash()` again would just blow up with
+  // "port closed". Route the user to Re-select port instead, and demote
+  // Retry to a disabled hint so the affordance isn't silently missing.
+  const isDisconnect = errorClass === 'disconnect'
 
   return (
     <section className="space-y-4">
@@ -53,28 +64,56 @@ export const FailedView = ({
         <h2 className={SECTION_HEADER_CLASSES}>Flash failed</h2>
         <p className="break-all font-mono text-sm text-text-dim">{errorMessage ?? 'Unknown error'}</p>
         <p className="text-sm leading-relaxed text-text-muted">
-          If retry keeps failing: check the USB cable, try a different USB port, and reboot
-          the ESP32 before retrying.
+          {isDisconnect
+            ? 'Re-plug the ESP32, then click Re-select port to pick the new connection.'
+            : 'If retry keeps failing: check the USB cable, try a different USB port, and reboot the ESP32 before retrying.'}
         </p>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <button
-          ref={retryRef}
-          type="button"
-          onClick={onRetry}
-          className={`w-full sm:w-auto ${PRIMARY_CTA_CLASSES} py-3 text-base font-semibold`}
-        >
-          Retry
-        </button>
-        <button
-          type="button"
-          onClick={onReset}
-          className={`w-full sm:w-auto ${SECONDARY_CTA_CLASSES}`}
-        >
-          Start over
-        </button>
-      </div>
+      {isDisconnect ? (
+        <div className="space-y-2">
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <button
+              ref={primaryCtaRef}
+              type="button"
+              onClick={() => {
+                void onReselectPort()
+              }}
+              className={`w-full sm:w-auto ${PRIMARY_CTA_CLASSES} py-3 text-base font-semibold`}
+            >
+              Re-select port
+            </button>
+            <button
+              type="button"
+              onClick={onReset}
+              className={`w-full sm:w-auto ${SECONDARY_CTA_CLASSES}`}
+            >
+              Start over
+            </button>
+          </div>
+          <p className="text-xs text-text-muted">
+            Retry unavailable — port lost. Use Re-select port.
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <button
+            ref={primaryCtaRef}
+            type="button"
+            onClick={onRetry}
+            className={`w-full sm:w-auto ${PRIMARY_CTA_CLASSES} py-3 text-base font-semibold`}
+          >
+            Retry
+          </button>
+          <button
+            type="button"
+            onClick={onReset}
+            className={`w-full sm:w-auto ${SECONDARY_CTA_CLASSES}`}
+          >
+            Start over
+          </button>
+        </div>
+      )}
 
       <LogStream log={log} />
 

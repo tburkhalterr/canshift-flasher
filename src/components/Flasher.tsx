@@ -83,8 +83,10 @@ const renderStateView = (
       return (
         <FailedView
           errorMessage={flasher.errorMessage}
+          errorClass={flasher.errorClass}
           onRetry={flasher.flash}
           onReset={flasher.reset}
+          onReselectPort={flasher.reselectPort}
           log={flasher.log}
           chipInfo={flasher.chipInfo}
           port={flasher.port}

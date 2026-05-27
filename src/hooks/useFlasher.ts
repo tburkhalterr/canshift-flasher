@@ -14,7 +14,7 @@ import { type LocalFirmware } from '../lib/local-firmware'
 import { type SelectedEcuProfile } from '../lib/profiles/catalog'
 import { type Release } from '../lib/releases'
 import { isSimEnabled, simFlash, simSelectPort } from '../lib/sim'
-import { classifyError, sendTelemetry } from '../lib/telemetry'
+import { classifyError, sendTelemetry, type TelemetryErrorClass } from '../lib/telemetry'
 
 import { useAutoConnect } from './useAutoConnect'
 import { useDisconnectGuard } from './useDisconnectGuard'
@@ -57,6 +57,7 @@ const initFlashingStatus = (prev: FlasherStatus): FlasherStatus => ({
   ...prev,
   state: 'flashing',
   errorMessage: null,
+  errorClass: null,
   chipInfo: null,
   downloadProgress: { loaded: 0, total: null },
   spiffsDownloadProgress: null,
@@ -87,16 +88,34 @@ const runSimFlash = async (
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     appendLog(`\nError: ${message}\n`)
-    setStatus((prev) => ({ ...prev, state: 'failed', errorMessage: message }))
+    setStatus((prev) => ({
+      ...prev,
+      state: 'failed',
+      errorMessage: message,
+      errorClass: classifyError(err),
+    }))
   }
 }
 
 export type FlasherState = 'idle' | 'ready' | 'flashing' | 'success' | 'failed'
 
+/**
+ * Re-export the telemetry error bucket under a UI-facing alias so the
+ * FailedView can branch its CTAs without importing from `lib/telemetry`.
+ */
+export type ErrorClass = TelemetryErrorClass
+
 export interface FlasherStatus {
   state: FlasherState
   port: SerialPort | null
   errorMessage: string | null
+  /**
+   * Classification bucket for the most recent failure — same enum as
+   * telemetry. `null` outside of `state === 'failed'`. Used by FailedView to
+   * branch CTAs (e.g. `'disconnect'` routes the user to Re-select port
+   * instead of a dead-port Retry).
+   */
+  errorClass: ErrorClass | null
   chipInfo: string | null
   downloadProgress: FirmwareDownloadProgress | null
   /** Present only when the release includes a SPIFFS asset. */
@@ -128,6 +147,7 @@ const INITIAL_STATUS: FlasherStatus = {
   state: 'idle',
   port: null,
   errorMessage: null,
+  errorClass: null,
   chipInfo: null,
   downloadProgress: null,
   spiffsDownloadProgress: null,
@@ -339,6 +359,7 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
         ...prev,
         state: 'failed',
         errorMessage: DISCONNECT_DURING_FLASH_MESSAGE,
+        errorClass: 'disconnect',
       }))
       disconnectGuard.detach()
       void sendTelemetry({
@@ -473,15 +494,21 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
         return
       }
       const message = err instanceof Error ? err.message : 'Unknown error'
+      const errorClass = classifyError(err)
       appendLog(`\nError: ${message}\n`)
-      setStatus((prev) => ({ ...prev, state: 'failed', errorMessage: message }))
+      setStatus((prev) => ({
+        ...prev,
+        state: 'failed',
+        errorMessage: message,
+        errorClass,
+      }))
       void sendTelemetry({
         outcome: 'failed',
         chipFamily: detectedChip,
         firmwareVersion: releaseRef.current?.version ?? null,
         durationMs: Math.round(performance.now() - startedAt),
         ...buildPhaseTimings(),
-        errorClass: classifyError(err),
+        errorClass,
       })
     }
   }, [appendLog, disconnectGuard, releaseRef])
