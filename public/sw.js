@@ -59,6 +59,12 @@ self.addEventListener('fetch', (event) => {
   // Never cache firmware payloads even when same-origin.
   if (url.pathname.startsWith('/firmware/')) return
 
+  // VitePress docs live at /docs/ and ship their own client-side router +
+  // HTML. The flasher's SW must NOT intercept those — the navigation fallback
+  // would otherwise serve the SPA shell on offline / cache hits and break
+  // every internal docs link.
+  if (url.pathname === '/docs' || url.pathname.startsWith('/docs/')) return
+
   // Navigation → network-first, fall back to cached shell.
   if (request.mode === 'navigate') {
     event.respondWith(

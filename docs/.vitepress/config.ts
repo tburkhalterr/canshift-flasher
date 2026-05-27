@@ -22,9 +22,10 @@ export default defineConfig({
   lastUpdated: true,
   themeConfig: {
     nav: [
-      // Leading slash so the link resolves at the deployed origin root
-      // (canshift.tmbk.ch/) rather than relative to /docs/.
-      { text: 'Back to flasher', link: '/' },
+      // Absolute URL forces VitePress to treat this as an external link —
+      // a leading-slash path would be rewritten under the `/docs/` base by
+      // the router and end up looping back to the docs index.
+      { text: 'Back to flasher', link: 'https://canshift.tmbk.ch/' },
     ],
     sidebar: [
       {
