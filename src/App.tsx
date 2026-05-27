@@ -1,5 +1,13 @@
 // src/App.tsx
-import { lazy, Suspense, useEffect, useMemo, useState, type ReactElement } from 'react'
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+} from 'react'
 
 import { CanshiftLogo } from './components/CanshiftLogo'
 import { Flasher } from './components/Flasher'
@@ -16,6 +24,20 @@ const HelpZone = lazy(() =>
 const CANSHIFT_REPO_URL = 'https://github.com/tburkhalterr/CANShift'
 const FLASHER_REPO_URL = 'https://github.com/tburkhalterr/canshift-flasher'
 
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',')
+
+const getFocusable = (container: HTMLElement): HTMLElement[] => {
+  const nodes = container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
+  return Array.from(nodes).filter((el) => !el.hasAttribute('disabled') && el.tabIndex !== -1)
+}
+
 const formatBuildDate = (iso: string): string => {
   const match = /^\d{4}-\d{2}-\d{2}/.exec(iso)
   return match ? match[0] : iso
@@ -25,6 +47,9 @@ export function App(): ReactElement {
   const webSerialSupported = useMemo(() => isWebSerialSupported(), [])
   const buildDate = formatBuildDate(BUILD_DATE)
   const [helpOpen, setHelpOpen] = useState(false)
+  const drawerRef = useRef<HTMLElement | null>(null)
+  const mainRef = useRef<HTMLElement | null>(null)
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null)
 
   // Esc closes the help drawer — only active when open so it never steals key
   // events from forms or other dialogs.
@@ -35,6 +60,68 @@ export function App(): ReactElement {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
+  }, [helpOpen])
+
+  // Focus management: save current focus on open, move into drawer, restore on
+  // close. Tab/Shift+Tab are trapped inside the drawer so AT users can't tab
+  // back to the (visually obscured) main content.
+  useEffect(() => {
+    if (!helpOpen) return
+
+    previouslyFocusedRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
+
+    const drawer = drawerRef.current
+    if (drawer) {
+      const focusables = getFocusable(drawer)
+      const target = focusables[0] ?? drawer
+      target.focus()
+    }
+
+    const handleTab = (event: KeyboardEvent): void => {
+      if (event.key !== 'Tab') return
+      const node = drawerRef.current
+      if (!node) return
+      const focusables = getFocusable(node)
+      const first = focusables[0]
+      const last = focusables[focusables.length - 1]
+      if (!first || !last) {
+        event.preventDefault()
+        return
+      }
+      const active = document.activeElement as HTMLElement | null
+      if (event.shiftKey) {
+        if (active === first || !node.contains(active)) {
+          event.preventDefault()
+          last.focus()
+        }
+      } else if (active === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    window.addEventListener('keydown', handleTab)
+    return () => {
+      window.removeEventListener('keydown', handleTab)
+      const previous = previouslyFocusedRef.current
+      if (previous && document.contains(previous)) {
+        previous.focus()
+      }
+    }
+  }, [helpOpen])
+
+  // Hide <main> from assistive tech while the drawer is open so screen readers
+  // don't read through the obscured content. `inert` on the drawer handles the
+  // inverse when closed.
+  useEffect(() => {
+    const main = mainRef.current
+    if (!main) return
+    if (helpOpen) {
+      main.setAttribute('aria-hidden', 'true')
+    } else {
+      main.removeAttribute('aria-hidden')
+    }
   }, [helpOpen])
 
   return (
@@ -67,7 +154,10 @@ export function App(): ReactElement {
       </header>
 
       <div className="relative flex flex-1 overflow-hidden">
-        <main className="flex-1 overflow-y-auto px-4 py-8 sm:px-6 lg:px-10 lg:py-10">
+        <main
+          ref={mainRef}
+          className="flex-1 overflow-y-auto px-4 pb-24 pt-8 sm:px-6 sm:pb-28 lg:px-10 lg:py-10"
+        >
           <section className="mx-auto w-full max-w-3xl rounded-md border border-border bg-surface p-6 shadow-lg sm:p-8">
             <Flasher webSerialSupported={webSerialSupported} />
           </section>
@@ -83,7 +173,9 @@ export function App(): ReactElement {
         ) : null}
 
         <aside
+          ref={drawerRef}
           aria-label="Help"
+          {...(helpOpen ? { role: 'dialog', 'aria-modal': true } : {})}
           // `inert` (not just aria-hidden) is what keeps focusable descendants
           // out of the tab order while the drawer is collapsed — Lighthouse's
           // `aria-hidden-focus` audit would otherwise flag the tab buttons.
