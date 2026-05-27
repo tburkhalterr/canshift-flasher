@@ -11,3 +11,13 @@ export const SECONDARY_CTA_CLASSES =
 
 export const SECTION_HEADER_CLASSES =
   'font-display text-lg font-bold tracking-wide text-text'
+
+// Full-width form controls used inside the flasher card. Shared between
+// <select> dropdowns and text <input>s so spacing/focus styling stays in
+// lock-step. SELECT_CLASSES keeps the `font-mono` tag look + the loading
+// `disabled:cursor-wait` affordance used by release/channel pickers.
+export const SELECT_CLASSES =
+  'w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-sm text-text focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-wait disabled:opacity-60'
+
+export const INPUT_CLASSES =
+  'w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60'
