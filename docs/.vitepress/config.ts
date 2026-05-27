@@ -6,8 +6,11 @@ import { defineConfig } from 'vitepress'
 // during `npm run build` so a single Vercel deploy serves both surfaces.
 export default defineConfig({
   base: '/docs/',
-  title: 'CANShift Flasher — Documentation',
-  titleTemplate: ':title — CANShift Flasher',
+  // Short site title — the longer "CANShift Flasher — Documentation" overflows
+  // the VitePress sidebar/top-nav at 960-1280px viewports and clips the search
+  // bar. Page titles still get the full template via `titleTemplate`.
+  title: 'CANShift Docs',
+  titleTemplate: ':title — CANShift Docs',
   description:
     'User documentation for the CANShift firmware flasher: workflow, ECU profiles, local firmware, and troubleshooting.',
   // `true` = follow the user's OS preference on first load + persist toggle
