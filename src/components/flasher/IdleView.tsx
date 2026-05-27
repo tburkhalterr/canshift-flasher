@@ -4,6 +4,7 @@ import { lazy, Suspense, useState, type ReactElement } from 'react'
 import type { AdvancedOptions } from '../../hooks/useFlasher'
 import type { UseReleaseChannelResult } from '../../hooks/useReleaseChannel'
 import { type SelectedDashboardLayout } from '../../lib/dashboards/catalog'
+import { formatBytes } from '../../lib/format'
 import { type LocalFirmware } from '../../lib/local-firmware'
 import { type SelectedEcuProfile } from '../../lib/profiles/catalog'
 import { type Release } from '../../lib/releases'
@@ -95,6 +96,32 @@ export const IdleView = ({
         />
       )}
 
+      {localFirmware ? (
+        // #120 (UX-13): when `useFlasher.reset()` preserves `localFirmware`
+        // across a Flash again, the visible <input> is cleared even though
+        // the file is still in memory. Surface a prominent affordance so
+        // the user knows the file is loaded and can either reuse it or
+        // pick a different one. Verification gating from #96 still applies
+        // via the disabled state below.
+        <ReuseLocalFirmwarePill
+          firmware={localFirmware}
+          onReuse={onConnect}
+          onClear={() => {
+            onLocalFirmwareChange(null)
+          }}
+          disabled={!ecuProfile || !dashboardLayout || !localFirmwareReady}
+          disabledReason={
+            !ecuProfile
+              ? 'Pick an ECU profile first'
+              : !dashboardLayout
+                ? 'Pick a dashboard layout first'
+                : !localFirmwareReady
+                  ? 'Resolve the local firmware verification warning before continuing'
+                  : undefined
+          }
+        />
+      ) : null}
+
       <Suspense fallback={null}>
         <LocalFirmwareInput
           value={localFirmware}
@@ -137,3 +164,53 @@ export const IdleView = ({
     </section>
   )
 }
+
+interface ReuseLocalFirmwarePillProps {
+  firmware: LocalFirmware
+  onReuse: () => void
+  onClear: () => void
+  disabled: boolean
+  disabledReason: string | undefined
+}
+
+const ReuseLocalFirmwarePill = ({
+  firmware,
+  onReuse,
+  onClear,
+  disabled,
+  disabledReason,
+}: ReuseLocalFirmwarePillProps): ReactElement => (
+  <div
+    data-testid="reuse-local-firmware-pill"
+    className="flex flex-col gap-2 rounded-md border border-border bg-surface-2 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
+  >
+    <div className="min-w-0 space-y-0.5">
+      <p className="font-display text-xs font-semibold uppercase tracking-wide text-text-muted">
+        Reuse local firmware
+      </p>
+      <p className="truncate text-text">
+        <span aria-hidden="true">📎 </span>
+        <span className="font-mono text-xs">{firmware.name}</span>
+        <span className="text-text-muted"> ({formatBytes(firmware.bytes.byteLength)})</span>
+      </p>
+    </div>
+    <div className="flex flex-shrink-0 gap-2">
+      <button
+        type="button"
+        onClick={onReuse}
+        disabled={disabled}
+        title={disabledReason}
+        className={`${PRIMARY_CTA_CLASSES} px-3 py-1.5 text-xs`}
+      >
+        Flash again with this file
+      </button>
+      <button
+        type="button"
+        onClick={onClear}
+        className="inline-flex items-center justify-center rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-medium text-text-muted transition hover:text-text focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-bg"
+      >
+        Pick a different file
+      </button>
+    </div>
+  </div>
+)
