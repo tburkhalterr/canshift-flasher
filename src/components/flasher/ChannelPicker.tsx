@@ -3,6 +3,8 @@ import type { ChangeEvent, ReactElement } from 'react'
 
 import type { Channel, RecentRelease } from '../../lib/releases'
 
+import { SELECT_CLASSES } from './styles'
+
 interface ChannelPickerProps {
   channel: Channel
   onChannelChange: (channel: Channel) => void
@@ -13,9 +15,6 @@ interface ChannelPickerProps {
   loading: boolean
   error: string | null
 }
-
-const SELECT_CLASSES =
-  'w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-sm text-text focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-wait disabled:opacity-60'
 
 const formatReleaseOption = (release: RecentRelease): string => {
   const date = release.publishedAt.slice(0, 10)
