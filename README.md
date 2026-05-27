@@ -93,14 +93,17 @@ they're running. The same SHA is appended to the telemetry payload as
 
 ## Configuration
 
-| Env var              | Default                                      | Purpose                              |
-| -------------------- | -------------------------------------------- | ------------------------------------ |
-| `VITE_FIRMWARE_URL`  | `https://canshift.tmbk.ch/firmware/latest.bin` | **Deprecated.** Static fallback (merged image) used only when the GitHub Releases API is unreachable. Must publish a sibling `${VITE_FIRMWARE_URL}.sha256` — the same SHA-256 verification applies. Append `?prerelease=1` to the flasher origin to opt into pre-release builds. |
-| `VITE_TELEMETRY_URL` | _(unset → telemetry disabled)_               | Endpoint that receives anonymous flash-outcome events |
+| Env var              | Default                          | Purpose                                               |
+| -------------------- | -------------------------------- | ----------------------------------------------------- |
+| `VITE_TELEMETRY_URL` | _(unset → telemetry disabled)_   | Endpoint that receives anonymous flash-outcome events |
 
-The default flow pulls release metadata + asset URLs directly from the
-canonical GitHub repository. `VITE_FIRMWARE_URL` is kept only for back-compat
-with deployments that pinned a self-hosted mirror.
+The flasher pulls release metadata + asset URLs directly from the canonical
+GitHub repository. When that lookup fails (network outage, GitHub down, or no
+release ships a matching merged asset), the flasher surfaces a clear error
+directing the user to the **Or flash a local file** option in the idle view
+(`LocalFirmwareInput`) — they can drop in a `.bin` (and optional `.sha256`
+sidecar) by hand. Append `?prerelease=1` to the flasher origin to opt into
+pre-release builds.
 
 Two product-level identifiers are exposed as compile-time constants in
 `src/constants.ts` and are the flasher's single source of truth — they must
@@ -128,11 +131,11 @@ Each asset MUST be accompanied by a sibling `<asset>.sha256` file in coreutils
 format (`<64-hex>  <filename>`) — the flasher hard-fails when the manifest is
 missing or doesn't match.
 
-If you self-host a fallback binary via `VITE_FIRMWARE_URL`, it MUST be the
-merged image. Uploading the app-only `firmware.bin` (intended for `0x10000`)
-at the same URL would brick boot — the ROM bootloader would fail with `flash
-read err, 1000` because the bootloader bytes would land at `0x10000` instead
-of `0x1000`.
+If you supply a local firmware via the **Or flash a local file** option, it
+MUST be the merged image. Uploading the app-only `firmware.bin` (intended for
+`0x10000`) would brick boot — the ROM bootloader would fail with `flash read
+err, 1000` because the bootloader bytes would land at `0x10000` instead of
+`0x1000`.
 
 Build the merged image with:
 
@@ -356,9 +359,10 @@ the sibling `.sha256` file published next to the binary in the GitHub release
 (coreutils format). A mismatch, a missing `.sha256` sibling, or a malformed
 manifest hard-fails the flash — there is no opt-out flag.
 
-The same gate applies to the `VITE_FIRMWARE_URL` fallback path: any deployment
-serving a self-hosted mirror **MUST** publish a sibling `.sha256` file next to
-the binary, or the flasher will refuse to flash.
+The same gate applies to local firmware uploaded via **Or flash a local file**:
+if the user provides a sibling `.sha256` sidecar, the flasher verifies it
+before writing; without one the upload is accepted but the SHA is recorded as
+unverified in the log.
 
 A separate HMAC pre-flash gate (closer to the in-firmware OTA verification) is
 tracked as a future hardening item in

@@ -22,62 +22,6 @@ export const DASH_HOSTNAME = 'canshift.local'
 /** WiFi access point SSID the dash broadcasts on first boot. */
 export const DASH_AP_SSID = 'CANShift'
 
-/**
- * Host allowlist for the static `VITE_FIRMWARE_URL` fallback. Hardcoded so a
- * misconfigured build env can't embed a hostile mirror — mirrors the legacy
- * fallback entry in `ALLOWED_ASSET_HOSTS` from `src/lib/releases.ts`. Keep
- * this in sync with that set if a new self-hosted mirror is ever introduced.
- */
-const ALLOWED_FIRMWARE_URL_HOSTS: ReadonlySet<string> = new Set(['canshift.tmbk.ch'])
-
-const DEFAULT_FIRMWARE_URL = 'https://canshift.tmbk.ch/firmware/latest.bin'
-
-/**
- * SEC-003 (#95): validate the configured firmware URL at module load so a
- * misconfigured build env fails the build deterministically instead of
- * shipping a bundle that points the flasher at an attacker-controlled host.
- * Throws on non-https protocol or an off-allowlist hostname. The default URL
- * (`canshift.tmbk.ch`) flows through the same check so the invariant holds
- * even when `VITE_FIRMWARE_URL` is unset.
- */
-const validateFirmwareUrl = (raw: string): string => {
-  let parsed: URL
-  try {
-    parsed = new URL(raw)
-  } catch {
-    throw new Error(
-      `Invalid VITE_FIRMWARE_URL "${raw}" — must be a well-formed absolute URL`,
-    )
-  }
-  if (parsed.protocol !== 'https:') {
-    throw new Error(
-      `Invalid VITE_FIRMWARE_URL "${raw}" — protocol must be https (got "${parsed.protocol}")`,
-    )
-  }
-  if (!ALLOWED_FIRMWARE_URL_HOSTS.has(parsed.hostname)) {
-    const allowed = [...ALLOWED_FIRMWARE_URL_HOSTS].join(', ')
-    throw new Error(
-      `Invalid VITE_FIRMWARE_URL "${raw}" — host "${parsed.hostname}" is not in the allowlist (${allowed})`,
-    )
-  }
-  return raw
-}
-
-/**
- * @deprecated Static fallback URL used only when the GitHub Releases API is
- * unreachable. The default path is now `fetchLatestRelease()` → use the
- * release's `firmwareAsset.url`. Keep `VITE_FIRMWARE_URL` for back-compat
- * with deployments that pinned a self-hosted mirror — it gets the same
- * mandatory SHA-256 verification against a sibling `.sha256` file.
- *
- * SEC-003 (#95): validated at module load against `ALLOWED_FIRMWARE_URL_HOSTS`.
- * A non-https URL or off-allowlist host throws here, which fails the Vite
- * build deterministically rather than embedding the bad URL in the bundle.
- */
-export const FIRMWARE_URL: string = validateFirmwareUrl(
-  (import.meta.env.VITE_FIRMWARE_URL as string | undefined) ?? DEFAULT_FIRMWARE_URL,
-)
-
 /** ESP32 baud rate for esptool stub upload. Matches canshift-studio default. */
 export const FLASH_BAUD = 921_600
 
