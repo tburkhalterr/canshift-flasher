@@ -2,6 +2,7 @@
 import type { ReactElement } from 'react'
 
 import { formatBytes } from '../../lib/format'
+import { WarningIcon } from '../icons'
 import { LogStream } from '../LogStream'
 import { ProgressBar } from '../ProgressBar'
 
@@ -51,8 +52,12 @@ export const FlashingView = ({
         <DashIllustration variant="flashing" />
       </div>
 
-      <div className="rounded-md border border-warning/60 bg-surface-2 px-4 py-3 text-sm text-warning">
-        Do not unplug the ESP32 while flashing.
+      <div
+        role="note"
+        className="flex items-center gap-2 rounded-md border border-warning/60 bg-surface-2 px-4 py-3 text-sm text-warning"
+      >
+        <WarningIcon />
+        <span>Do not unplug the ESP32 while flashing.</span>
       </div>
 
       {chipInfo ? (
