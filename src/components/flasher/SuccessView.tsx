@@ -1,5 +1,5 @@
 // src/components/flasher/SuccessView.tsx
-import type { ReactElement } from 'react'
+import { useEffect, useRef, type ReactElement } from 'react'
 
 import { DASH_AP_SSID, DASH_HOSTNAME } from '../../constants'
 import {
@@ -95,11 +95,29 @@ export const SuccessView = ({
   const showEcuDownload = hasEcuPayload(ecuProfile)
   const showDashboardDownload = hasDashboardPayload(dashboardLayout)
   const showDownloadsBlock = showEcuDownload || showDashboardDownload
+  const headingRef = useRef<HTMLHeadingElement>(null)
+
+  // Move focus to the success heading on mount so screen readers announce the
+  // completion and keyboard focus doesn't fall back to <body> after the Cancel
+  // button unmounts. The role=status + aria-live=polite wrapper also announces
+  // the heading text for AT users who don't follow focus.
+  useEffect(() => {
+    headingRef.current?.focus()
+  }, [])
+
   return (
     <section className="space-y-4">
       <div className="flex flex-col items-center gap-3">
         <DashIllustration variant="success" />
-        <h2 className="font-display text-lg font-bold tracking-wide text-success">{heading}</h2>
+        <div role="status" aria-live="polite">
+          <h2
+            ref={headingRef}
+            tabIndex={-1}
+            className="font-display text-lg font-bold tracking-wide text-success outline-none"
+          >
+            {heading}
+          </h2>
+        </div>
       </div>
 
       <div className="space-y-3">
