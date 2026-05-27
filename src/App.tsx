@@ -40,15 +40,24 @@ export function App(): ReactElement {
             Firmware Flasher
           </span>
         </div>
-        <a
-          href={CANSHIFT_REPO_URL}
-          target="_blank"
-          rel="noreferrer"
-          aria-label="CANShift on GitHub"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-text-muted transition hover:bg-surface-2 hover:text-text focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-bg"
-        >
-          <GithubIcon />
-        </a>
+        <div className="flex items-center gap-1 sm:gap-2">
+          <a
+            href="/docs/"
+            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 font-display text-xs uppercase tracking-[0.15em] text-text-dim transition hover:bg-surface-2 hover:text-text focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-bg sm:px-3"
+          >
+            <DocsIcon />
+            <span className="hidden sm:inline">Docs</span>
+          </a>
+          <a
+            href={CANSHIFT_REPO_URL}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="CANShift on GitHub"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-text-muted transition hover:bg-surface-2 hover:text-text focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-bg"
+          >
+            <GithubIcon />
+          </a>
+        </div>
       </header>
 
       <div className="relative flex flex-1 overflow-hidden">
@@ -124,6 +133,24 @@ export function App(): ReactElement {
     </div>
   )
 }
+
+const DocsIcon = (): ReactElement => (
+  <svg
+    aria-hidden="true"
+    focusable="false"
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5V4.5A2.5 2.5 0 0 1 6.5 2z" />
+  </svg>
+)
 
 const GithubIcon = (): ReactElement => (
   <svg
