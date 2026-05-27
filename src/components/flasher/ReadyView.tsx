@@ -1,5 +1,5 @@
 // src/components/flasher/ReadyView.tsx
-import { lazy, Suspense, type ReactElement } from 'react'
+import { lazy, Suspense, useState, type ReactElement } from 'react'
 
 import type { AdvancedOptions } from '../../hooks/useFlasher'
 import type { UseReleaseChannelResult } from '../../hooks/useReleaseChannel'
@@ -56,6 +56,10 @@ export const ReadyView = ({
 }: ReadyViewProps): ReactElement => {
   const { channel, setChannel, releases, loading, error } = channelState
   const overrideTag = advanced.versionOverride?.trim() ?? ''
+  // #96 (SEC-004): block Flash when a local firmware is loaded but lacks a
+  // verified or explicitly-accepted checksum. Initial value is `true` so the
+  // gate is a no-op until `LocalFirmwareInput` reports otherwise.
+  const [localFirmwareReady, setLocalFirmwareReady] = useState(true)
 
   const handleChannelChange = (next: typeof channel): void => {
     setChannel(next)
@@ -96,12 +100,22 @@ export const ReadyView = ({
       )}
 
       <Suspense fallback={null}>
-        <LocalFirmwareInput value={localFirmware} onChange={onLocalFirmwareChange} />
+        <LocalFirmwareInput
+          value={localFirmware}
+          onChange={onLocalFirmwareChange}
+          onReadinessChange={setLocalFirmwareReady}
+        />
       </Suspense>
 
       <button
         type="button"
         onClick={onFlash}
+        disabled={!localFirmwareReady}
+        title={
+          !localFirmwareReady
+            ? 'Resolve the local firmware verification warning before flashing'
+            : undefined
+        }
         className={`w-full sm:w-auto ${PRIMARY_CTA_CLASSES} py-3 text-base font-semibold`}
       >
         {flashLabel(localFirmware, overrideTag, releases[0]?.tag)}

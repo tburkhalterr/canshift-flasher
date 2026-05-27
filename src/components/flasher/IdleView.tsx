@@ -1,5 +1,5 @@
 // src/components/flasher/IdleView.tsx
-import { lazy, Suspense, type ReactElement } from 'react'
+import { lazy, Suspense, useState, type ReactElement } from 'react'
 
 import type { AdvancedOptions } from '../../hooks/useFlasher'
 import type { UseReleaseChannelResult } from '../../hooks/useReleaseChannel'
@@ -53,6 +53,10 @@ export const IdleView = ({
 }: IdleViewProps): ReactElement => {
   const { channel, setChannel, releases, loading, error } = channelState
   const selectedTag = advanced.versionOverride ?? ''
+  // #96 (SEC-004): block Connect when a local firmware is loaded but lacks
+  // a verified or explicitly-accepted checksum. Initial value is `true` so
+  // the gate is a no-op until `LocalFirmwareInput` reports otherwise.
+  const [localFirmwareReady, setLocalFirmwareReady] = useState(true)
 
   const handleChannelChange = (next: typeof channel): void => {
     setChannel(next)
@@ -92,7 +96,11 @@ export const IdleView = ({
       )}
 
       <Suspense fallback={null}>
-        <LocalFirmwareInput value={localFirmware} onChange={onLocalFirmwareChange} />
+        <LocalFirmwareInput
+          value={localFirmware}
+          onChange={onLocalFirmwareChange}
+          onReadinessChange={setLocalFirmwareReady}
+        />
       </Suspense>
 
       {localFirmware || !release ? null : <ReleaseSummary release={release} />}
@@ -110,13 +118,15 @@ export const IdleView = ({
       <button
         type="button"
         onClick={onConnect}
-        disabled={!ecuProfile || !dashboardLayout}
+        disabled={!ecuProfile || !dashboardLayout || !localFirmwareReady}
         title={
           !ecuProfile
             ? 'Pick an ECU profile first'
             : !dashboardLayout
               ? 'Pick a dashboard layout first'
-              : undefined
+              : !localFirmwareReady
+                ? 'Resolve the local firmware verification warning before continuing'
+                : undefined
         }
         className={`w-full sm:w-auto ${PRIMARY_CTA_CLASSES} py-3 text-base font-semibold`}
       >
