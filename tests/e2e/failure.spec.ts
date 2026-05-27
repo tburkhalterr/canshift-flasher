@@ -35,7 +35,7 @@ test.describe('sim failure flow', () => {
       page.getByRole('img', { name: 'ESP32 connected, ready to flash' }),
     ).toBeVisible()
 
-    await page.getByRole('button', { name: /^Flash / }).click()
+    await page.getByRole('main').getByRole('button', { name: /^Flash / }).click()
 
     // --- FailedView appears once sim throws (~1-2s after partial progress). ---
 

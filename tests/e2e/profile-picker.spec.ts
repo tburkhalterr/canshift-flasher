@@ -38,7 +38,7 @@ test.describe('ECU profile picker', () => {
       page.getByRole('img', { name: 'ESP32 connected, ready to flash' }),
     ).toBeVisible()
 
-    await page.getByRole('button', { name: /^Flash / }).click()
+    await page.getByRole('main').getByRole('button', { name: /^Flash / }).click()
     await expect(
       page.getByRole('heading', { name: /Flashed/ }),
     ).toBeVisible({ timeout: 8_000 })
@@ -54,7 +54,7 @@ test.describe('ECU profile picker', () => {
     // Both pickers must have a value before Connect enables. The sim auto-pick
     // already populated both on first mount and `reset()` preserves both, so
     // Connect is already enabled — clearing the dashboard re-disables it.
-    const connect = page.getByRole('button', { name: 'Connect' })
+    const connect = page.getByRole('main').getByRole('button', { name: 'Connect' })
     await expect(connect).toBeEnabled()
     await dashboardPicker.selectOption('')
     await expect(connect).toBeDisabled()
@@ -74,7 +74,7 @@ test.describe('ECU profile picker', () => {
       page.getByRole('img', { name: 'ESP32 connected, ready to flash' }),
     ).toBeVisible()
 
-    await page.getByRole('button', { name: /^Flash / }).click()
+    await page.getByRole('main').getByRole('button', { name: /^Flash / }).click()
 
     await expect(
       page.getByRole('heading', { name: /Flashed/ }),
@@ -107,7 +107,7 @@ test.describe('ECU profile picker', () => {
     await expect(
       page.getByRole('img', { name: 'ESP32 connected, ready to flash' }),
     ).toBeVisible()
-    await page.getByRole('button', { name: /^Flash / }).click()
+    await page.getByRole('main').getByRole('button', { name: /^Flash / }).click()
     await expect(
       page.getByRole('heading', { name: /Flashed/ }),
     ).toBeVisible({ timeout: 8_000 })
@@ -115,7 +115,7 @@ test.describe('ECU profile picker', () => {
 
     const ecuPicker = page.getByLabel(/ECU profile/i)
     const dashboardPicker = page.getByLabel(/Dashboard layout/i)
-    const connect = page.getByRole('button', { name: 'Connect' })
+    const connect = page.getByRole('main').getByRole('button', { name: 'Connect' })
 
     // Clear both — Connect must disable.
     await ecuPicker.selectOption('')

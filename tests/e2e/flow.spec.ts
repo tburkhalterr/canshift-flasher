@@ -50,7 +50,7 @@ test.describe('sim happy-path flow', () => {
 
     // --- Click Flash latest → FlashingView. ---
 
-    await page.getByRole('button', { name: /^Flash / }).click()
+    await page.getByRole('main').getByRole('button', { name: /^Flash / }).click()
 
     await expect(
       page.getByRole('img', { name: 'ESP32 being flashed' }),
@@ -99,11 +99,11 @@ test.describe('sim happy-path flow', () => {
       page.getByRole('listitem', { name: /Step 1 of 3: Plug/ }),
     ).toHaveAttribute('aria-current', 'step')
     await expect(page.locator('text=/Latest( version)?:/')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Connect' })).toBeVisible()
+    await expect(page.getByRole('main').getByRole('button', { name: 'Connect' })).toBeVisible()
 
-    await page.getByRole('button', { name: 'Connect' }).click()
+    await page.getByRole('main').getByRole('button', { name: 'Connect' }).click()
     await expect(
-      page.getByRole('button', { name: /^Flash / }),
+      page.getByRole('main').getByRole('button', { name: /^Flash / }),
     ).toBeVisible()
   })
 })

@@ -140,24 +140,27 @@ export const HelpZone = ({ onClose }: HelpZoneProps = {}): ReactElement => {
         ) : null}
       </div>
 
-      <div role="tablist" aria-label="Troubleshooting topics" className="mt-4 flex flex-wrap gap-2">
+      <div
+        role="group"
+        aria-label="Troubleshooting topics"
+        className="mt-4 flex flex-wrap gap-2"
+      >
         {TOPICS.map((topic) => {
-          const isActive = topic.question === openTopic
+          const isOpen = topic.question === openTopic
           const panelId = `help-panel-${topic.id}`
-          const tabId = `help-tab-${topic.id}`
+          const buttonId = `help-disclosure-${topic.id}`
           return (
             <button
               key={topic.id}
-              id={tabId}
+              id={buttonId}
               type="button"
-              role="tab"
-              aria-selected={isActive}
+              aria-expanded={isOpen}
               aria-controls={panelId}
               aria-label={topic.question}
               title={topic.question}
-              onClick={() => setOpenTopic(isActive ? null : topic.question)}
+              onClick={() => setOpenTopic(isOpen ? null : topic.question)}
               className={`flex h-10 w-10 items-center justify-center rounded-sm border transition-colors ${
-                isActive
+                isOpen
                   ? 'border-status-danger bg-surface-2 text-status-danger'
                   : 'border-border bg-surface-2 text-text-dim hover:border-status-danger hover:text-status-danger'
               }`}
@@ -171,8 +174,7 @@ export const HelpZone = ({ onClose }: HelpZoneProps = {}): ReactElement => {
       {activeTopic ? (
         <div
           id={`help-panel-${activeTopic.id}`}
-          role="tabpanel"
-          aria-labelledby={`help-tab-${activeTopic.id}`}
+          aria-labelledby={`help-disclosure-${activeTopic.id}`}
           className="mt-3 rounded-sm border border-border bg-surface-2 px-3 py-3"
         >
           <h3 className="text-text">{activeTopic.question}</h3>
