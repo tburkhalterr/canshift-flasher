@@ -4,6 +4,7 @@ import type { ReactElement, ReactNode } from 'react'
 
 import { DASH_AP_SSID, DASH_HOSTNAME } from '../constants'
 
+import { HELP_TOPIC_TITLES, type HelpTopicId } from './help-topics'
 import {
   BrowserIcon,
   ChipIcon,
@@ -16,7 +17,7 @@ import {
 } from './icons'
 
 interface Topic {
-  id: string
+  id: HelpTopicId
   question: string
   icon: ReactElement
   answer: ReactNode
@@ -25,7 +26,7 @@ interface Topic {
 const TOPICS: readonly Topic[] = [
   {
     id: 'no-port',
-    question: 'No port shown when I click Connect',
+    question: HELP_TOPIC_TITLES['no-port'],
     icon: <UsbIcon />,
     answer: (
       <ul className="list-disc space-y-1 pl-5">
@@ -43,7 +44,7 @@ const TOPICS: readonly Topic[] = [
   },
   {
     id: 'flash-id-ffffff',
-    question: '"Flash ID is ffffff"',
+    question: HELP_TOPIC_TITLES['flash-id-ffffff'],
     icon: <ChipIcon />,
     answer: (
       <p>
@@ -55,7 +56,7 @@ const TOPICS: readonly Topic[] = [
   },
   {
     id: 'enter-bootloader',
-    question: '"Could not enter ESP32 bootloader"',
+    question: HELP_TOPIC_TITLES['enter-bootloader'],
     icon: <RestartIcon />,
     answer: (
       <p>
@@ -67,7 +68,7 @@ const TOPICS: readonly Topic[] = [
   },
   {
     id: 'no-boot',
-    question: "Flash succeeds but ESP32 doesn't boot",
+    question: HELP_TOPIC_TITLES['no-boot'],
     icon: <PowerIcon />,
     answer: (
       <ul className="list-disc space-y-1 pl-5">
@@ -85,7 +86,7 @@ const TOPICS: readonly Topic[] = [
   },
   {
     id: 'browser-unsupported',
-    question: 'Browser says "not supported"',
+    question: HELP_TOPIC_TITLES['browser-unsupported'],
     icon: <BrowserIcon />,
     answer: (
       <p>
@@ -96,7 +97,7 @@ const TOPICS: readonly Topic[] = [
   },
   {
     id: 'sha-mismatch',
-    question: '"SHA-256 mismatch"',
+    question: HELP_TOPIC_TITLES['sha-mismatch'],
     icon: <ShieldIcon />,
     answer: (
       <p>
@@ -109,10 +110,40 @@ const TOPICS: readonly Topic[] = [
 
 interface HelpZoneProps {
   onClose?: () => void
+  /**
+   * Controlled "force this topic open" signal. When the prop changes to a
+   * non-null id, the matching topic is expanded. Internal state still tracks
+   * user-driven clicks, so the prop is a one-shot directive — not a fully
+   * controlled value the parent has to keep in sync.
+   */
+  selectedTopicId?: HelpTopicId | null
 }
 
-export const HelpZone = ({ onClose }: HelpZoneProps = {}): ReactElement => {
-  const [openTopic, setOpenTopic] = useState<string | null>(null)
+const topicQuestionForId = (id: HelpTopicId | null): string | null => {
+  if (id === null) return null
+  return TOPICS.find((topic) => topic.id === id)?.question ?? null
+}
+
+export const HelpZone = ({
+  onClose,
+  selectedTopicId = null,
+}: HelpZoneProps = {}): ReactElement => {
+  const [openTopic, setOpenTopic] = useState<string | null>(() =>
+    topicQuestionForId(selectedTopicId),
+  )
+  // Re-sync inline when the parent pushes a new directive. The React-docs
+  // "adjusting state on prop change" pattern: snapshot the prop in `useState`
+  // and compare each render. Preferred over `useEffect`, which would flicker
+  // the wrong panel for one paint and lint-fail under set-state-in-effect.
+  const [lastDirective, setLastDirective] = useState<HelpTopicId | null>(selectedTopicId)
+  if (selectedTopicId !== null && selectedTopicId !== lastDirective) {
+    setLastDirective(selectedTopicId)
+    const question = topicQuestionForId(selectedTopicId)
+    if (question !== null && question !== openTopic) {
+      setOpenTopic(question)
+    }
+  }
+
   const activeTopic = TOPICS.find((topic) => topic.question === openTopic) ?? null
 
   return (

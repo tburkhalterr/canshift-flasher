@@ -2,6 +2,7 @@
 import {
   lazy,
   Suspense,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -11,7 +12,9 @@ import {
 
 import { CanshiftLogo } from './components/CanshiftLogo'
 import { Flasher } from './components/Flasher'
+import type { HelpTopicId } from './components/help-topics'
 import { BUILD_DATE, BUILD_SHA } from './constants'
+import { HelpProvider, type HelpContextValue } from './hooks/useHelp'
 import { isWebSerialSupported } from './lib/browser'
 
 // Lazy-loaded: the help drawer is hidden behind a button on first paint.
@@ -47,20 +50,43 @@ export function App(): ReactElement {
   const webSerialSupported = useMemo(() => isWebSerialSupported(), [])
   const buildDate = formatBuildDate(BUILD_DATE)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [helpTopic, setHelpTopic] = useState<HelpTopicId | null>(null)
   const drawerRef = useRef<HTMLElement | null>(null)
   const mainRef = useRef<HTMLElement | null>(null)
   const previouslyFocusedRef = useRef<HTMLElement | null>(null)
+
+  // Imperative drawer API exposed via context so descendants (FailedView) can
+  // open the drawer pre-selected on a topic without prop-drilling.
+  const helpContext = useMemo<HelpContextValue>(
+    () => ({
+      open: (topicId) => {
+        setHelpTopic(topicId ?? null)
+        setHelpOpen(true)
+      },
+      close: () => {
+        setHelpOpen(false)
+      },
+    }),
+    [],
+  )
+
+  // Clear the topic directive when the user closes the drawer so the next
+  // open without a topic doesn't re-snap to the previous selection.
+  const handleClose = useCallback(() => {
+    setHelpOpen(false)
+    setHelpTopic(null)
+  }, [])
 
   // Esc closes the help drawer — only active when open so it never steals key
   // events from forms or other dialogs.
   useEffect(() => {
     if (!helpOpen) return
     const handler = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setHelpOpen(false)
+      if (event.key === 'Escape') handleClose()
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [helpOpen])
+  }, [helpOpen, handleClose])
 
   // Focus management: save current focus on open, move into drawer, restore on
   // close. Tab/Shift+Tab are trapped inside the drawer so AT users can't tab
@@ -125,6 +151,7 @@ export function App(): ReactElement {
   }, [helpOpen])
 
   return (
+    <HelpProvider value={helpContext}>
     <div className="flex min-h-screen flex-col bg-bg text-text">
       <header className="flex items-center justify-between border-b border-border bg-surface px-4 py-3 sm:px-6">
         <div className="flex items-center gap-3">
@@ -167,7 +194,7 @@ export function App(): ReactElement {
           <button
             type="button"
             aria-label="Close help"
-            onClick={() => setHelpOpen(false)}
+            onClick={handleClose}
             className="absolute inset-0 z-10 bg-black/40 lg:hidden"
           />
         ) : null}
@@ -189,7 +216,7 @@ export function App(): ReactElement {
               loaded, React keeps it mounted, so subsequent opens are instant. */}
           {helpOpen ? (
             <Suspense fallback={null}>
-              <HelpZone onClose={() => setHelpOpen(false)} />
+              <HelpZone onClose={handleClose} selectedTopicId={helpTopic} />
             </Suspense>
           ) : null}
         </aside>
@@ -197,7 +224,7 @@ export function App(): ReactElement {
         {helpOpen ? null : (
           <button
             type="button"
-            onClick={() => setHelpOpen(true)}
+            onClick={() => helpContext.open()}
             aria-label="Open troubleshooting help"
             title="Troubleshooting"
             className="absolute bottom-4 right-4 z-10 inline-flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-text-dim shadow-lg transition hover:bg-surface-2 hover:text-text focus:outline-none focus:ring-2 focus:ring-ring sm:bottom-6 sm:right-6"
@@ -240,6 +267,7 @@ export function App(): ReactElement {
         </a>
       </footer>
     </div>
+    </HelpProvider>
   )
 }
 
