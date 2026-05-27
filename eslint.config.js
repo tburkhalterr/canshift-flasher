@@ -17,6 +17,9 @@ export default tseslint.config(
       '*.config.ts',
       'scripts/**',
       'public/**',
+      // VitePress documentation lives outside the SPA's source tree.
+      // Its TS config and Vue/CSS theme files use different conventions.
+      'docs/**',
       // Claude tooling stores parallel-work worktrees here. Their dist/
       // and node_modules/ should never be linted.
       '.claude/**',
