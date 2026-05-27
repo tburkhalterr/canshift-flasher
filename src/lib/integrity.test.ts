@@ -102,7 +102,10 @@ describe('verifyFirmwareSha256', () => {
     vi.unstubAllGlobals()
   })
 
-  function manifestResponse(body: string, init: { ok?: boolean; status?: number } = {}): Response {
+  function manifestResponse(
+    body: string,
+    init: { ok?: boolean; status?: number; contentType?: string | null } = {},
+  ): Response {
     const encoded = new TextEncoder().encode(body)
     const stream = new ReadableStream<Uint8Array>({
       pull(controller) {
@@ -110,10 +113,17 @@ describe('verifyFirmwareSha256', () => {
         controller.close()
       },
     })
+    const headerInit: Record<string, string> = {}
+    if (init.contentType === undefined) {
+      headerInit['content-type'] = 'text/plain'
+    } else if (init.contentType !== null) {
+      headerInit['content-type'] = init.contentType
+    }
     return {
       ok: init.ok ?? true,
       status: init.status ?? 200,
       statusText: init.status === 404 ? 'Not Found' : 'OK',
+      headers: new Headers(headerInit),
       body: stream,
       text: () => Promise.resolve(body),
     } as unknown as Response
@@ -150,5 +160,81 @@ describe('verifyFirmwareSha256', () => {
     const err = await verifyFirmwareSha256(abc, FAKE_MANIFEST_URL).catch((e: unknown) => e)
     expect(err).toBeInstanceOf(FirmwareIntegrityError)
     expect((err as FirmwareIntegrityError).kind).toBe('malformed')
+  })
+
+  it('accepts a response with Content-Type "text/plain; charset=utf-8"', async () => {
+    fetchMock.mockResolvedValueOnce(
+      manifestResponse(`${ABC_DIGEST}\n`, { contentType: 'text/plain; charset=utf-8' }),
+    )
+    const abc = new TextEncoder().encode('abc')
+    await expect(verifyFirmwareSha256(abc, FAKE_MANIFEST_URL)).resolves.toBe(ABC_DIGEST)
+  })
+
+  it('accepts a response with Content-Type "application/octet-stream"', async () => {
+    fetchMock.mockResolvedValueOnce(
+      manifestResponse(`${ABC_DIGEST}\n`, { contentType: 'application/octet-stream' }),
+    )
+    const abc = new TextEncoder().encode('abc')
+    await expect(verifyFirmwareSha256(abc, FAKE_MANIFEST_URL)).resolves.toBe(ABC_DIGEST)
+  })
+
+  it('accepts a response with Content-Type "application/x-sha256-text"', async () => {
+    fetchMock.mockResolvedValueOnce(
+      manifestResponse(`${ABC_DIGEST}\n`, { contentType: 'application/x-sha256-text' }),
+    )
+    const abc = new TextEncoder().encode('abc')
+    await expect(verifyFirmwareSha256(abc, FAKE_MANIFEST_URL)).resolves.toBe(ABC_DIGEST)
+  })
+
+  it('accepts a response with no Content-Type header at all', async () => {
+    fetchMock.mockResolvedValueOnce(manifestResponse(`${ABC_DIGEST}\n`, { contentType: null }))
+    const abc = new TextEncoder().encode('abc')
+    await expect(verifyFirmwareSha256(abc, FAKE_MANIFEST_URL)).resolves.toBe(ABC_DIGEST)
+  })
+
+  it('rejects a response with Content-Type "text/html" (case-insensitive)', async () => {
+    fetchMock.mockResolvedValueOnce(
+      manifestResponse(`<html><body>${ABC_DIGEST}</body></html>`, {
+        contentType: 'TEXT/HTML; charset=utf-8',
+      }),
+    )
+    const abc = new TextEncoder().encode('abc')
+    const err = await verifyFirmwareSha256(abc, FAKE_MANIFEST_URL).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(FirmwareIntegrityError)
+    expect((err as FirmwareIntegrityError).kind).toBe('missing')
+    expect((err as FirmwareIntegrityError).message).toMatch(/Content-Type/i)
+    expect((err as FirmwareIntegrityError).message).toMatch(/text\/html/i)
+  })
+
+  it('rejects a response with Content-Type "application/xml"', async () => {
+    fetchMock.mockResolvedValueOnce(
+      manifestResponse(`<doc>${ABC_DIGEST}</doc>`, { contentType: 'application/xml' }),
+    )
+    const abc = new TextEncoder().encode('abc')
+    const err = await verifyFirmwareSha256(abc, FAKE_MANIFEST_URL).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(FirmwareIntegrityError)
+    expect((err as FirmwareIntegrityError).kind).toBe('missing')
+    expect((err as FirmwareIntegrityError).message).toMatch(/Content-Type/i)
+  })
+
+  it('rejects a response with Content-Type "application/json"', async () => {
+    fetchMock.mockResolvedValueOnce(
+      manifestResponse(`{"digest":"${ABC_DIGEST}"}`, { contentType: 'application/json' }),
+    )
+    const abc = new TextEncoder().encode('abc')
+    const err = await verifyFirmwareSha256(abc, FAKE_MANIFEST_URL).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(FirmwareIntegrityError)
+    expect((err as FirmwareIntegrityError).kind).toBe('missing')
+  })
+
+  it('rejects a text/plain response with a non-utf-8 charset attribute', async () => {
+    fetchMock.mockResolvedValueOnce(
+      manifestResponse(`${ABC_DIGEST}\n`, { contentType: 'text/plain; charset=iso-8859-1' }),
+    )
+    const abc = new TextEncoder().encode('abc')
+    const err = await verifyFirmwareSha256(abc, FAKE_MANIFEST_URL).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(FirmwareIntegrityError)
+    expect((err as FirmwareIntegrityError).kind).toBe('missing')
+    expect((err as FirmwareIntegrityError).message).toMatch(/charset/i)
   })
 })
