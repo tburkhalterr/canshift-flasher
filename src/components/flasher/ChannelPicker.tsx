@@ -35,23 +35,34 @@ export const ChannelPicker = ({
     onChannelChange(event.target.value as Channel)
   }
 
+  const latestTag = releases[0]?.tag ?? null
+
   const handleVersion = (event: ChangeEvent<HTMLSelectElement>): void => {
-    onVersionChange(event.target.value)
+    // UX-14: when the user picks the tag that equals the current channel's
+    // latest, collapse it down to the "no override" sentinel so a reload
+    // doesn't carry an unnecessary `versionOverride` through the URL.
+    const next = event.target.value
+    onVersionChange(next !== '' && next === latestTag ? '' : next)
   }
 
-  const latestTag = releases[0]?.tag ?? null
   const versionDisabled = loading || releases.length === 0
 
   return (
     <div className="space-y-3 rounded-md border border-border bg-surface-2 px-4 py-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-sm text-text-dim">
-          <span>Channel</span>
+          <span className="flex items-center gap-2">
+            <span>Channel</span>
+            {loading ? (
+              <span className="text-xs text-text-muted">Loading releases…</span>
+            ) : null}
+          </span>
           <select
             value={channel}
             onChange={handleChannel}
             className={SELECT_CLASSES}
             aria-label="Release channel"
+            disabled={loading}
           >
             <option value="stable">Stable</option>
             <option value="beta">Beta</option>
@@ -74,11 +85,13 @@ export const ChannelPicker = ({
                   ? `Latest (${latestTag})`
                   : 'No releases available'}
             </option>
-            {releases.map((release) => (
-              <option key={release.tag} value={release.tag}>
-                {formatReleaseOption(release)}
-              </option>
-            ))}
+            {releases
+              .filter((release) => release.tag !== latestTag)
+              .map((release) => (
+                <option key={release.tag} value={release.tag}>
+                  {formatReleaseOption(release)}
+                </option>
+              ))}
           </select>
         </label>
       </div>
