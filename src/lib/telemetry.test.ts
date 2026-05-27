@@ -159,10 +159,42 @@ describe('classifyError', () => {
     expect(classifyError(undefined)).toBe('unknown')
   })
 
-  it('falls back to message regex for raw Error and warns', async () => {
+  it('does NOT log the regex-fallback warning when a typed class matches', async () => {
+    // Issue #162: every typed-class match must take the `instanceof` fast path
+    // and skip the `classifyByMessage` warning entirely. If a future refactor
+    // moves the warn into the typed branch, the noisy log returns.
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const {
+      classifyError,
+      FlashIdError: FlashIdCls,
+      BootloaderEntryError: BootloaderCls,
+      FirmwareIntegrityError: IntegrityCls,
+      FirmwareDownloadError: DownloadCls,
+    } = await loadClassifier()
+
+    expect(classifyError(new FlashIdCls('Flash ID is ffffff'))).toBe('flash-id-ffffff')
+    expect(classifyError(new BootloaderCls('Could not enter ESP32 bootloader'))).toBe('sync-failed')
+    expect(classifyError(new IntegrityCls('mismatch', 'boom'))).toBe('sha256-mismatch')
+    expect(classifyError(new DownloadCls('HTTP 500'))).toBe('http')
+    expect(classifyError(new DOMException('aborted', 'AbortError'))).toBe('cancelled')
+
+    expect(warnSpy).not.toHaveBeenCalled()
+    warnSpy.mockRestore()
+  })
+
+  it('falls back to message regex for raw Error and warns (back-compat)', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const { classifyError } = await loadClassifier()
+
+    // A raw `Error` (no typed class) still classifies by message AND warns,
+    // so unmigrated throw sites stay observable in dev/CI.
     expect(classifyError(new Error('Flash ID is ffffff'))).toBe('flash-id-ffffff')
+    expect(classifyError(new Error('Firmware download failed: HTTP 500'))).toBe('http')
+    expect(classifyError(new Error('SHA-256 mismatch'))).toBe('sha256-mismatch')
+    expect(classifyError(new Error('USB connection lost'))).toBe('disconnect')
+    expect(classifyError(new Error('Could not enter ESP32 bootloader'))).toBe('sync-failed')
+    expect(classifyError(new Error('user cancelled'))).toBe('cancelled')
+
     expect(warnSpy).toHaveBeenCalled()
     warnSpy.mockRestore()
   })
