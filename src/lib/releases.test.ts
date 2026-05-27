@@ -10,7 +10,15 @@ import {
   type Release,
 } from './releases'
 
-const LS_CACHE_KEY = 'canshift-flasher.releases.v6'
+const LS_CACHE_KEY = 'canshift-flasher.releases'
+const LEGACY_LS_CACHE_KEYS = [
+  'canshift-flasher.releases.v1',
+  'canshift-flasher.releases.v2',
+  'canshift-flasher.releases.v3',
+  'canshift-flasher.releases.v4',
+  'canshift-flasher.releases.v5',
+  'canshift-flasher.releases.v6',
+] as const
 
 const FIRMWARE_ASSET_NAME = 'canshift-firmware-v0.10.0-crowpanel_28-merged.bin'
 const SPIFFS_ASSET_NAME = 'canshift-spiffs-v0.10.0-crowpanel_28.bin'
@@ -533,5 +541,106 @@ describe('asset URL allowlist (SEC-002)', () => {
 
     const release = await fetchLatestRelease()
     expect(release.firmwareAsset).not.toBeNull()
+  })
+})
+
+describe('schema-driven cache invalidation (#167)', () => {
+  const fetchMock = vi.fn<typeof fetch>()
+
+  const makeCachedRelease = (): Release => ({
+    version: '0.10.0',
+    tag: 'v0.10.0',
+    publishedAt: '2026-04-01T12:00:00Z',
+    notes: '',
+    prerelease: false,
+    firmwareAsset: {
+      url: `/api/firmware-proxy?url=${encodeURIComponent(FIRMWARE_API_URL)}`,
+      sizeBytes: 1_572_864,
+      expectedSha256: 'a'.repeat(64),
+      sha256Url: `/api/firmware-proxy?url=${encodeURIComponent(FIRMWARE_SHA_API_URL)}`,
+    },
+    spiffsAsset: null,
+    htmlUrl: 'https://github.com/x/y/releases/tag/v0.10.0',
+  })
+
+  beforeEach(() => {
+    fetchMock.mockReset()
+    __resetReleaseCacheForTests()
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('accepts a persisted entry with the current shape (no network call)', async () => {
+    const cached = makeCachedRelease()
+    localStorage.setItem(
+      LS_CACHE_KEY,
+      JSON.stringify({ fetchedAt: Date.now(), releases: [cached] }),
+    )
+
+    const release = await fetchLatestRelease()
+    expect(release.tag).toBe('v0.10.0')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a persisted entry missing a required field and refetches', async () => {
+    // Simulate an old-shape entry by writing a release without `prerelease`.
+    const cached = makeCachedRelease() as unknown as Record<string, unknown>
+    delete cached.prerelease
+    localStorage.setItem(
+      LS_CACHE_KEY,
+      JSON.stringify({ fetchedAt: Date.now(), releases: [cached] }),
+    )
+
+    fetchMock.mockResolvedValueOnce(jsonResponse([makeReleasePayload()]))
+    const release = await fetchLatestRelease()
+    expect(release.tag).toBe('v0.10.0')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects a persisted entry with the wrong field type and refetches', async () => {
+    // `sizeBytes` as a string — old shape or hand-edited storage.
+    const cached = makeCachedRelease() as unknown as Record<string, unknown>
+    ;(cached.firmwareAsset as Record<string, unknown>).sizeBytes = '1572864'
+    localStorage.setItem(
+      LS_CACHE_KEY,
+      JSON.stringify({ fetchedAt: Date.now(), releases: [cached] }),
+    )
+
+    fetchMock.mockResolvedValueOnce(jsonResponse([makeReleasePayload()]))
+    await fetchLatestRelease()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects garbage JSON and refetches', async () => {
+    localStorage.setItem(LS_CACHE_KEY, '{not valid json at all')
+
+    fetchMock.mockResolvedValueOnce(jsonResponse([makeReleasePayload()]))
+    const release = await fetchLatestRelease()
+    expect(release.tag).toBe('v0.10.0')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects a top-level non-object payload', async () => {
+    localStorage.setItem(LS_CACHE_KEY, JSON.stringify([1, 2, 3]))
+
+    fetchMock.mockResolvedValueOnce(jsonResponse([makeReleasePayload()]))
+    await fetchLatestRelease()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('purges legacy versioned cache keys (v1..v6) on first read', async () => {
+    for (const key of LEGACY_LS_CACHE_KEYS) {
+      localStorage.setItem(key, JSON.stringify({ stale: true }))
+    }
+
+    fetchMock.mockResolvedValueOnce(jsonResponse([makeReleasePayload()]))
+    await fetchLatestRelease()
+
+    for (const key of LEGACY_LS_CACHE_KEYS) {
+      expect(localStorage.getItem(key)).toBeNull()
+    }
   })
 })
