@@ -165,18 +165,62 @@ async function attemptBootloaderEntry(
  */
 const BAUD_FALLBACK_LADDER: readonly number[] = [460_800, 115_200]
 
-/** True when the bootloader-entry error looks baud-related — i.e. lowering
- *  the rate is likely to help. Other errors (port closed, USB unplug, BOOT
- *  required, flash chip dead) should fail fast.
+/**
+ * Message fragments esptool-js uses when the serial link is noisy / unreliable.
  *
- *  `No serial data received` is what esptool-js emits when the post-baud-change
- *  read times out — typically because the chip switched to a rate the cable
- *  can't sustain. Same root cause as the explicit "noise" wording. */
-const isSerialNoiseError = (err: unknown): boolean => {
+ * Each fragment is matched case-insensitively against `err.message`. The
+ * regex form (`new RegExp(fragments.join('|'), 'i')`) is what gates the
+ * baud-rate fallback ladder in `flashFirmware`.
+ *
+ * Why message matching and not `instanceof`:
+ *
+ * - esptool-js 0.6.0 exports only the high-level surface from `lib/index.d.ts`
+ *   (ESPLoader, Transport, reset strategies, options/terminal types). The
+ *   typed error classes (`ESPError`, `TimeoutError` in `lib/types/error.d.ts`)
+ *   are NOT re-exported — relying on the deep `esptool-js/lib/types/error.js`
+ *   path would bind us to an internal layout that can shift with any minor
+ *   release.
+ *
+ * - Even if those classes were public, the specific noise errors we care about
+ *   are thrown as plain `new Error(...)` from `lib/webserial.js`
+ *   (`Invalid head of packet`, `Serial data stream stopped`, `No serial data
+ *   received`) — NOT as `ESPError`/`TimeoutError`. An `instanceof` check
+ *   against the typed classes would silently fall through for the exact cases
+ *   that should trigger the fallback.
+ *
+ * Each fragment below is anchored to the upstream string literal it tracks.
+ * A follow-up issue should be raised upstream (espressif/esptool-js) asking
+ * for a typed `TransportError` / `SerialNoiseError` so this can become a
+ * structural check.
+ */
+const SERIAL_NOISE_MESSAGE_FRAGMENTS: readonly string[] = [
+  // webserial.js: thrown when the first byte of a SLIP packet is not 0xc0.
+  'Invalid head of packet',
+  // webserial.js: thrown when the read window opens but no bytes arrive at all.
+  'Serial data stream stopped',
+  // webserial.js: thrown after a partial packet when the read window closes.
+  // The post-baud-change handshake fails this way when the cable can't sustain
+  // the new rate — same root cause as the explicit "noise" wording, different
+  // string. PR #160 added this after the initial regex (#159) missed it.
+  'No serial data received',
+  // webserial.js: appears in the "Invalid head of packet" suffix — kept as a
+  // separate fragment so any future re-wording that drops the "head of packet"
+  // prefix still triggers the fallback.
+  'noise or corruption',
+]
+
+const SERIAL_NOISE_MESSAGE_REGEX = new RegExp(SERIAL_NOISE_MESSAGE_FRAGMENTS.join('|'), 'i')
+
+/**
+ * True when the bootloader-entry error looks baud-related — i.e. lowering the
+ * rate is likely to help. Other errors (port closed, USB unplug, BOOT
+ * required, flash chip dead) should fail fast.
+ *
+ * Exported only for unit testing — production callers stay inside this module.
+ */
+export const isSerialNoiseError = (err: unknown): boolean => {
   if (!(err instanceof Error)) return false
-  return /Invalid head of packet|Serial data stream stopped|No serial data received|noise or corruption/i.test(
-    err.message,
-  )
+  return SERIAL_NOISE_MESSAGE_REGEX.test(err.message)
 }
 
 /**

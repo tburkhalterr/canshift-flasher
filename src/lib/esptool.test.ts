@@ -47,7 +47,7 @@ vi.mock('./reset', async () => {
 
 // --- imports MUST come after vi.mock calls above ------------------------
 
-const { flashFirmware } = await import('./esptool')
+const { flashFirmware, isSerialNoiseError } = await import('./esptool')
 const { RESET_VARIANT_ORDER } = await import('./reset')
 
 // --- fixtures -----------------------------------------------------------
@@ -143,5 +143,43 @@ describe('flashFirmware (variant retry order)', () => {
   // Mocking esptool-js can only validate our own control flow.
   it.skip('end-to-end flash against a real port is covered by Playwright (future)', () => {
     /* tracked separately */
+  })
+})
+
+describe('isSerialNoiseError', () => {
+  it('returns false for non-Error values', () => {
+    expect(isSerialNoiseError(null)).toBe(false)
+    expect(isSerialNoiseError(undefined)).toBe(false)
+    expect(isSerialNoiseError('Invalid head of packet')).toBe(false)
+    expect(isSerialNoiseError({ message: 'Invalid head of packet' })).toBe(false)
+  })
+
+  it('returns false for unrelated Error messages', () => {
+    expect(isSerialNoiseError(new Error('The port is already open'))).toBe(false)
+    expect(isSerialNoiseError(new Error('Failed to connect with the device'))).toBe(false)
+    expect(isSerialNoiseError(new Error(''))).toBe(false)
+  })
+
+  // The four representative strings below are pinned to esptool-js
+  // `lib/webserial.js`. Any upstream re-wording will fail these tests instead
+  // of silently disabling the baud-rate fallback (the regression that
+  // motivated #164).
+  it.each([
+    ['Invalid head of packet (0xff): Possible serial noise or corruption.'],
+    ['Serial data stream stopped: Possible serial noise or corruption.'],
+    ['No serial data received.'],
+    ['something something noise or corruption something'],
+  ])('matches representative esptool-js noise message: %s', (message) => {
+    expect(isSerialNoiseError(new Error(message))).toBe(true)
+  })
+
+  it('matches case-insensitively', () => {
+    expect(isSerialNoiseError(new Error('INVALID HEAD OF PACKET'))).toBe(true)
+    expect(isSerialNoiseError(new Error('no serial data received'))).toBe(true)
+  })
+
+  it('treats Error subclasses the same as plain Error', () => {
+    class CustomError extends Error {}
+    expect(isSerialNoiseError(new CustomError('Invalid head of packet'))).toBe(true)
   })
 })
