@@ -60,6 +60,81 @@ const MANIFEST_FETCH_TIMEOUT_MS = 8_000
 const MANIFEST_MAX_BYTES = 64 * 1024
 
 /**
+ * Content-Type prefixes we accept for a `.sha256` sibling.
+ *
+ * Defence-in-depth (SEC-009): even though `parseSha256Manifest` rejects any
+ * body that isn't a bare hex digest, a misconfigured mirror returning
+ * `text/html` with `<html>...64-hex-string...</html>` could still squeeze
+ * through if the digest pattern matched a line of the document. We refuse
+ * such responses outright before reading the body.
+ *
+ * Empty / missing Content-Type is tolerated because some static-file hosts
+ * omit it for unknown extensions. The known-good sources are:
+ *   - `objects.githubusercontent.com` (GitHub release-asset CDN) → typically
+ *     `application/octet-stream`.
+ *   - `canshift.tmbk.ch` (legacy fallback) → `text/plain` or no header.
+ *   - `api/firmware-proxy.ts` (this repo's edge proxy) → forwards the
+ *     upstream type, defaulting to `application/octet-stream`.
+ */
+const ACCEPTED_MANIFEST_CONTENT_TYPE_PREFIXES = [
+  'text/plain',
+  'application/octet-stream',
+  'application/x-sha256-text',
+] as const
+
+/**
+ * Parses a Content-Type header into `{ type, charset }`. Returns `null` for
+ * an empty / missing header so callers can treat that as "permitted".
+ */
+function parseContentType(header: string | null): { type: string; charset: string | null } | null {
+  if (header === null) return null
+  const trimmed = header.trim()
+  if (trimmed.length === 0) return null
+  const [rawType, ...params] = trimmed.split(';')
+  const type = (rawType ?? '').trim().toLowerCase()
+  let charset: string | null = null
+  for (const param of params) {
+    const eq = param.indexOf('=')
+    if (eq < 0) continue
+    const name = param.slice(0, eq).trim().toLowerCase()
+    if (name !== 'charset') continue
+    const value = param
+      .slice(eq + 1)
+      .trim()
+      .toLowerCase()
+      .replace(/^"(.*)"$/, '$1')
+    charset = value
+  }
+  return { type, charset }
+}
+
+/**
+ * Throws if the manifest response's Content-Type is incompatible with a
+ * `.sha256` sibling. Accepts known plaintext-ish types and missing headers;
+ * rejects HTML, XML, JSON, and any non-ASCII/non-UTF-8 charset attribute.
+ */
+function assertAcceptableManifestContentType(header: string | null, manifestUrl: string): void {
+  const parsed = parseContentType(header)
+  if (parsed === null) return
+
+  const { type, charset } = parsed
+  const accepted = ACCEPTED_MANIFEST_CONTENT_TYPE_PREFIXES.some((prefix) => type.startsWith(prefix))
+  if (!accepted) {
+    throw new Error(
+      `Unexpected Content-Type "${header ?? ''}" for SHA-256 manifest at ${manifestUrl}: ` +
+        `refusing to parse a non-plaintext body as a digest sidecar.`,
+    )
+  }
+
+  if (charset !== null && charset !== 'utf-8' && charset !== 'us-ascii' && charset !== 'ascii') {
+    throw new Error(
+      `Unsupported charset "${charset}" for SHA-256 manifest at ${manifestUrl}: ` +
+        `only utf-8 / ascii are accepted.`,
+    )
+  }
+}
+
+/**
  * Parses the body of a `.sha256` sibling. Returns the lowercased 64-char hex
  * digest, or `null` if no usable line was found.
  *
@@ -128,6 +203,7 @@ async function fetchManifestText(manifestUrl: string): Promise<string> {
     if (!response.ok) {
       throw new Error(`HTTP ${String(response.status)} ${response.statusText}`)
     }
+    assertAcceptableManifestContentType(response.headers.get('content-type'), manifestUrl)
     if (!response.body) {
       // Edge case: some test/server combos hand back an empty body. Read text
       // anyway — an empty body parses as malformed below.
