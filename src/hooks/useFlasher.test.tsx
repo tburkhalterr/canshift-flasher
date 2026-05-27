@@ -392,6 +392,108 @@ describe('useFlasher state machine', () => {
     expect(result.current.errorMessage).toContain('USB connection lost')
   })
 
+  it('coalesces rapid flashFirmware onProgress callbacks into one rAF batch', async () => {
+    // Per-chunk callbacks fire dozens of times per second on a real flash.
+    // Each one used to be its own `setStatus(prev => ...)` → full
+    // reconciliation including the LogStream subtree. The hook now buffers
+    // pending progress in refs and flushes once per animation frame, mirroring
+    // the buffering `appendLog` already does. See #105 (PERF-003).
+    const port = makePort()
+    installSerialMock({
+      requestPort: vi.fn().mockResolvedValue(port),
+    })
+
+    // Drive the test rAF cadence by hand so we can fire callbacks between frames.
+    vi.useFakeTimers()
+    const rafCallbacks: FrameRequestCallback[] = []
+    const rafSpy = vi
+      .spyOn(globalThis, 'requestAnimationFrame')
+      .mockImplementation((cb: FrameRequestCallback) => {
+        rafCallbacks.push(cb)
+        return rafCallbacks.length
+      })
+    vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => {
+      /* tests drain by invoking callbacks directly */
+    })
+
+    downloadSpy.mockResolvedValue({ bytes: new Uint8Array([1]), size: 1 })
+
+    // Hold flashFirmware open so we can fire many onProgress callbacks before
+    // the success transition lands and we lose the chance to observe coalescing.
+    let firedProgress: ((progress: { written: number; total: number }) => void) | null = null
+    let resolveFlash: (() => void) | null = null
+    flashSpy.mockImplementation((opts: esptool.FlashRunOptions) => {
+      firedProgress = opts.onProgress
+      return new Promise<void>((resolve) => {
+        resolveFlash = resolve
+      })
+    })
+
+    const { result } = renderHook(() => useFlasher())
+
+    await act(async () => {
+      await result.current.selectPort()
+    })
+
+    act(() => {
+      void result.current.flash()
+    })
+
+    // Wait for flashFirmware to be invoked and hand us its onProgress.
+    await vi.waitFor(() => {
+      expect(firedProgress).not.toBeNull()
+    })
+
+    // Drain the rAFs the flashing-state transition itself scheduled — only
+    // post-drain rAFs count as progress-induced.
+    act(() => {
+      while (rafCallbacks.length > 0) {
+        const cb = rafCallbacks.shift()
+        cb?.(performance.now())
+      }
+    })
+    const rafBaseline = rafSpy.mock.calls.length
+
+    // Fire 100 progress callbacks in a tight loop — same shape as a chatty
+    // esptool stream. Without coalescing this would be 100 setStatus calls
+    // and 100 React reconciliations; with rAF batching it must schedule at
+    // most one rAF until the next frame fires.
+    act(() => {
+      for (let i = 0; i < 100; i++) {
+        firedProgress?.({ written: i, total: 100 })
+      }
+    })
+
+    const rafScheduledByProgress = rafSpy.mock.calls.length - rafBaseline
+    expect(rafScheduledByProgress).toBe(1)
+    // Pending progress should not yet be on state — coalescing means the
+    // rAF callback hasn't run, so `flashProgress` is still null.
+    expect(result.current.flashProgress).toBeNull()
+
+    // Flush the queued rAF — the latest value (99 / 100) must land on state.
+    act(() => {
+      const cb = rafCallbacks.shift()
+      cb?.(performance.now())
+    })
+    expect(result.current.flashProgress).toEqual({ written: 99, total: 100 })
+
+    // A second burst after the flush should schedule exactly one more rAF.
+    const rafAfterFirstFlush = rafSpy.mock.calls.length
+    act(() => {
+      for (let i = 0; i < 50; i++) {
+        firedProgress?.({ written: 200 + i, total: 100 })
+      }
+    })
+    expect(rafSpy.mock.calls.length - rafAfterFirstFlush).toBe(1)
+
+    // Let the flash settle so the hook unmounts cleanly.
+    act(() => {
+      resolveFlash?.()
+    })
+
+    vi.useRealTimers()
+  })
+
   it('clears errorClass back to null when a fresh flash starts', async () => {
     const port = makePort()
     installSerialMock({
