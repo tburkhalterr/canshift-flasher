@@ -2,7 +2,9 @@
 import { useEffect, useRef, type ReactElement } from 'react'
 
 import type { ErrorClass } from '../../hooks/useFlasher'
+import { useHelp } from '../../hooks/useHelp'
 import type { Release } from '../../lib/releases'
+import { getHelpTopicTitle, type HelpTopicId } from '../help-topics'
 import { LogStream } from '../LogStream'
 
 import { DashIllustration } from './illustrations/DashIllustration'
@@ -12,6 +14,29 @@ import {
   SECONDARY_CTA_CLASSES,
   SECTION_HEADER_CLASSES,
 } from './styles'
+
+/**
+ * Map each failure bucket (from `classifyError`) to the help topic that
+ * documents it. Buckets without a clean-fit topic (`http`, `cancelled`,
+ * `unknown`) deliberately omit a link rather than route the user somewhere
+ * tangentially related — the existing error message + Retry/Start-over CTAs
+ * stay as the only affordances in those cases.
+ */
+const ERROR_CLASS_TO_TOPIC: Readonly<Partial<Record<ErrorClass, HelpTopicId>>> = {
+  'flash-id-ffffff': 'flash-id-ffffff',
+  'sync-failed': 'enter-bootloader',
+  'sha256-mismatch': 'sha-mismatch',
+  disconnect: 'enter-bootloader',
+}
+
+const resolveHelpTopic = (
+  errorClass: ErrorClass | null,
+): { id: HelpTopicId; title: string } | null => {
+  if (errorClass === null) return null
+  const topicId = ERROR_CLASS_TO_TOPIC[errorClass]
+  if (!topicId) return null
+  return { id: topicId, title: getHelpTopicTitle(topicId) }
+}
 
 interface FailedViewProps {
   errorMessage: string | null
@@ -39,6 +64,8 @@ export const FailedView = ({
   logTruncated,
 }: FailedViewProps): ReactElement => {
   const primaryCtaRef = useRef<HTMLButtonElement>(null)
+  const help = useHelp()
+  const helpTopic = resolveHelpTopic(errorClass)
 
   useEffect(() => {
     primaryCtaRef.current?.focus()
@@ -68,6 +95,18 @@ export const FailedView = ({
             ? 'Re-plug the ESP32, then click Re-select port to pick the new connection.'
             : 'If retry keeps failing: check the USB cable, try a different USB port, and reboot the ESP32 before retrying.'}
         </p>
+        {helpTopic ? (
+          <p className="text-sm">
+            <button
+              type="button"
+              onClick={() => help.open(helpTopic.id)}
+              className="inline-flex items-center gap-1 text-status-danger underline-offset-4 hover:underline focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              See troubleshooting: {helpTopic.title}
+              <span aria-hidden="true">&rarr;</span>
+            </button>
+          </p>
+        ) : null}
       </div>
 
       {isDisconnect ? (
