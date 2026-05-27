@@ -218,6 +218,20 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
   const logTruncatedRef = useRef<boolean>(false)
   const logFlushScheduledRef = useRef<boolean>(false)
   const logFlushHandleRef = useRef<number | null>(null)
+  // Pending progress values, written synchronously by per-chunk callbacks
+  // and flushed onto state once per animation frame. Mirrors the buffering
+  // pattern that `appendLog` uses for log lines — keeps a chatty stream
+  // (esptool flash writes, multi-MB downloads) from triggering one React
+  // reconciliation per chunk. See #105 (PERF-003).
+  const pendingDownloadProgressRef = useRef<FirmwareDownloadProgress | null>(null)
+  const pendingSpiffsProgressRef = useRef<FirmwareDownloadProgress | null>(null)
+  const pendingFlashProgressRef = useRef<FlashProgress | null>(null)
+  // Sentinel: distinguishes "no callback fired since last flush" from
+  // "callback fired with a null value" (the SPIFFS slot legitimately goes
+  // back to null when only the firmware asset is being downloaded).
+  const pendingSpiffsProgressHasValueRef = useRef<boolean>(false)
+  const progressFlushScheduledRef = useRef<boolean>(false)
+  const progressFlushHandleRef = useRef<number | null>(null)
   const downloadAbortRef = useRef<AbortController | null>(null)
   // Mirror of `status.advanced` so `flash()` reads the latest power-user
   // options at call time without being recreated on every toggle.
@@ -270,11 +284,62 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
     [flushLog],
   )
 
+  const flushProgress = useCallback(() => {
+    progressFlushScheduledRef.current = false
+    progressFlushHandleRef.current = null
+    const nextDownload = pendingDownloadProgressRef.current
+    const nextFlash = pendingFlashProgressRef.current
+    const spiffsHasValue = pendingSpiffsProgressHasValueRef.current
+    const nextSpiffs = pendingSpiffsProgressRef.current
+    pendingDownloadProgressRef.current = null
+    pendingFlashProgressRef.current = null
+    pendingSpiffsProgressRef.current = null
+    pendingSpiffsProgressHasValueRef.current = false
+    setStatus((prev) => ({
+      ...prev,
+      downloadProgress: nextDownload ?? prev.downloadProgress,
+      spiffsDownloadProgress: spiffsHasValue ? nextSpiffs : prev.spiffsDownloadProgress,
+      flashProgress: nextFlash ?? prev.flashProgress,
+    }))
+  }, [])
+
+  const scheduleProgressFlush = useCallback(() => {
+    if (progressFlushScheduledRef.current) return
+    progressFlushScheduledRef.current = true
+    if (typeof requestAnimationFrame === 'function') {
+      progressFlushHandleRef.current = requestAnimationFrame(flushProgress)
+    } else {
+      queueMicrotask(flushProgress)
+    }
+  }, [flushProgress])
+
+  // Force-flush any pending progress synchronously. Called at terminal
+  // transitions (success / failure / cancel) so the final progress values
+  // land on state before the next state phase replaces them — otherwise a
+  // late rAF could overwrite a `state: 'success'` clear with stale progress.
+  const drainProgress = useCallback(() => {
+    if (
+      progressFlushHandleRef.current !== null &&
+      typeof cancelAnimationFrame === 'function'
+    ) {
+      cancelAnimationFrame(progressFlushHandleRef.current)
+    }
+    progressFlushHandleRef.current = null
+    if (!progressFlushScheduledRef.current) return
+    flushProgress()
+  }, [flushProgress])
+
   // Cancel any pending rAF on unmount so we don't flush into a torn-down hook.
   useEffect(() => {
     return () => {
       if (logFlushHandleRef.current !== null && typeof cancelAnimationFrame === 'function') {
         cancelAnimationFrame(logFlushHandleRef.current)
+      }
+      if (
+        progressFlushHandleRef.current !== null &&
+        typeof cancelAnimationFrame === 'function'
+      ) {
+        cancelAnimationFrame(progressFlushHandleRef.current)
       }
     }
   }, [])
@@ -320,6 +385,20 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
     portRef.current = null
     logBufferRef.current = ''
     logTruncatedRef.current = false
+    // Drop any in-flight progress so a late rAF can't repaint the just-reset
+    // form with stale download/flash values.
+    if (
+      progressFlushHandleRef.current !== null &&
+      typeof cancelAnimationFrame === 'function'
+    ) {
+      cancelAnimationFrame(progressFlushHandleRef.current)
+    }
+    progressFlushHandleRef.current = null
+    progressFlushScheduledRef.current = false
+    pendingDownloadProgressRef.current = null
+    pendingSpiffsProgressRef.current = null
+    pendingSpiffsProgressHasValueRef.current = false
+    pendingFlashProgressRef.current = null
     // Preserve the resolved release across reset — it was fetched once on
     // mount and re-fetching on every "Flash again" would just hit the rate
     // limit for no UX benefit. Also preserve advanced options so power-users
@@ -401,6 +480,7 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
     disconnectGuard.attach(port, () => {
       disconnectFiredDuringFlash = true
       appendLog(`\n${DISCONNECT_DURING_FLASH_MESSAGE}\n`)
+      drainProgress()
       setStatus((prev) => ({
         ...prev,
         state: 'failed',
@@ -451,13 +531,16 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
         payload = await acquirePayload(activeRelease, abortController.signal, {
           onLog: appendLog,
           onProgress: (p) => {
-            setStatus((prev) => ({
-              ...prev,
-              downloadProgress: p.firmware ?? prev.downloadProgress,
-              spiffsDownloadProgress: p.spiffs,
-            }))
+            if (p.firmware) pendingDownloadProgressRef.current = p.firmware
+            pendingSpiffsProgressRef.current = p.spiffs
+            pendingSpiffsProgressHasValueRef.current = true
+            scheduleProgressFlush()
           },
         })
+        // Make sure the final per-chunk progress lands on state before the
+        // verify phase starts — otherwise the ProgressBar can sit at 99 % for
+        // a frame after the download has actually completed.
+        drainProgress()
         tDownloadDone = performance.now()
 
         await verifyPayload(payload, appendLog)
@@ -489,7 +572,8 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
         ...(payload.spiffsBytes ? { spiffs: payload.spiffsBytes } : {}),
         onLog: appendLog,
         onProgress: (progress) => {
-          setStatus((prev) => ({ ...prev, flashProgress: progress }))
+          pendingFlashProgressRef.current = progress
+          scheduleProgressFlush()
         },
         onChipInfo: (chip) => {
           detectedChip = chip
@@ -500,6 +584,9 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
       })
       tFlashDone = performance.now()
 
+      // Land any in-flight progress before the success transition so the
+      // ProgressBar can't snap back to a stale value on the final frame.
+      drainProgress()
       disconnectGuard.detach()
       downloadAbortRef.current = null
       setStatus((prev) => ({ ...prev, state: 'success' }))
@@ -519,6 +606,20 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
       if (disconnectFiredDuringFlash) return
       // User opted out via Cancel — return to idle instead of showing failure.
       if (err instanceof DOMException && err.name === 'AbortError') {
+        // Drop any rAF-pending progress so a late flush can't reintroduce
+        // download/flash progress after we reset back to idle.
+        if (
+          progressFlushHandleRef.current !== null &&
+          typeof cancelAnimationFrame === 'function'
+        ) {
+          cancelAnimationFrame(progressFlushHandleRef.current)
+        }
+        progressFlushHandleRef.current = null
+        progressFlushScheduledRef.current = false
+        pendingDownloadProgressRef.current = null
+        pendingSpiffsProgressRef.current = null
+        pendingSpiffsProgressHasValueRef.current = false
+        pendingFlashProgressRef.current = null
         portRef.current = null
         logBufferRef.current = ''
         logTruncatedRef.current = false
@@ -542,6 +643,9 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
       const message = err instanceof Error ? err.message : 'Unknown error'
       const errorClass = classifyError(err)
       appendLog(`\nError: ${message}\n`)
+      // Land whatever progress arrived before the failure so the UI shows
+      // where the flash actually stopped instead of the previous frame's value.
+      drainProgress()
       setStatus((prev) => ({
         ...prev,
         state: 'failed',
@@ -557,7 +661,7 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
         errorClass,
       })
     }
-  }, [appendLog, disconnectGuard, releaseRef])
+  }, [appendLog, disconnectGuard, drainProgress, releaseRef, scheduleProgressFlush])
 
   const cancel = useCallback(() => {
     const controller = downloadAbortRef.current
