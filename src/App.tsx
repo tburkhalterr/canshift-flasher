@@ -1,11 +1,17 @@
 // src/App.tsx
-import { useEffect, useMemo, useState, type ReactElement } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState, type ReactElement } from 'react'
 
 import { CanshiftLogo } from './components/CanshiftLogo'
 import { Flasher } from './components/Flasher'
-import { HelpZone } from './components/HelpZone'
 import { BUILD_DATE, BUILD_SHA } from './constants'
 import { isWebSerialSupported } from './lib/browser'
+
+// Lazy-loaded: the help drawer is hidden behind a button on first paint.
+// First-open latency is acceptable; null fallback never user-visible because
+// the aside is `inert` + translated off-screen until helpOpen flips true.
+const HelpZone = lazy(() =>
+  import('./components/HelpZone').then((m) => ({ default: m.HelpZone })),
+)
 
 const CANSHIFT_REPO_URL = 'https://github.com/tburkhalterr/CANShift'
 const FLASHER_REPO_URL = 'https://github.com/tburkhalterr/canshift-flasher'
@@ -86,7 +92,14 @@ export function App(): ReactElement {
             helpOpen ? 'translate-x-0' : 'pointer-events-none translate-x-full'
           }`}
         >
-          <HelpZone onClose={() => setHelpOpen(false)} />
+          {/* Only mount HelpZone once the user has opened the drawer — keeps
+              the lazy chunk request off the first-paint critical path. Once
+              loaded, React keeps it mounted, so subsequent opens are instant. */}
+          {helpOpen ? (
+            <Suspense fallback={null}>
+              <HelpZone onClose={() => setHelpOpen(false)} />
+            </Suspense>
+          ) : null}
         </aside>
 
         {helpOpen ? null : (

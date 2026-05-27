@@ -1,16 +1,24 @@
 // src/components/flasher/ReadyView.tsx
-import type { ReactElement } from 'react'
+import { lazy, Suspense, type ReactElement } from 'react'
 
 import type { AdvancedOptions } from '../../hooks/useFlasher'
 import type { UseReleaseChannelResult } from '../../hooks/useReleaseChannel'
 import { formatPortInfo } from '../../lib/format'
 import { type LocalFirmware } from '../../lib/local-firmware'
 
-import { AdvancedPanel } from './AdvancedPanel'
 import { ChannelPicker } from './ChannelPicker'
 import { DashIllustration } from './illustrations/DashIllustration'
-import { LocalFirmwareInput } from './LocalFirmwareInput'
 import { PRIMARY_CTA_CLASSES } from './styles'
+
+// Lazy-loaded: both panels live inside collapsed <details> elements, so the
+// JS isn't needed for first paint. One-time fetch on first interaction is
+// acceptable; the null fallback is never user-visible (collapsed by default).
+const AdvancedPanel = lazy(() =>
+  import('./AdvancedPanel').then((m) => ({ default: m.AdvancedPanel })),
+)
+const LocalFirmwareInput = lazy(() =>
+  import('./LocalFirmwareInput').then((m) => ({ default: m.LocalFirmwareInput })),
+)
 
 interface ReadyViewProps {
   port: SerialPort | null
@@ -87,7 +95,9 @@ export const ReadyView = ({
         />
       )}
 
-      <LocalFirmwareInput value={localFirmware} onChange={onLocalFirmwareChange} />
+      <Suspense fallback={null}>
+        <LocalFirmwareInput value={localFirmware} onChange={onLocalFirmwareChange} />
+      </Suspense>
 
       <button
         type="button"
@@ -97,7 +107,9 @@ export const ReadyView = ({
         {flashLabel(localFirmware, overrideTag, releases[0]?.tag)}
       </button>
 
-      <AdvancedPanel value={advanced} onChange={onAdvancedChange} />
+      <Suspense fallback={null}>
+        <AdvancedPanel value={advanced} onChange={onAdvancedChange} />
+      </Suspense>
 
       <button
         type="button"
