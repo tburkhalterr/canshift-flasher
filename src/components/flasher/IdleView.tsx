@@ -1,5 +1,5 @@
 // src/components/flasher/IdleView.tsx
-import type { ReactElement } from 'react'
+import { lazy, Suspense, type ReactElement } from 'react'
 
 import type { AdvancedOptions } from '../../hooks/useFlasher'
 import type { UseReleaseChannelResult } from '../../hooks/useReleaseChannel'
@@ -13,9 +13,14 @@ import { DashboardLayoutPicker } from './DashboardLayoutPicker'
 import { EcuProfilePicker } from './EcuProfilePicker'
 import { ErrorBanner } from './ErrorBanner'
 import { DashIllustration } from './illustrations/DashIllustration'
-import { LocalFirmwareInput } from './LocalFirmwareInput'
 import { ReleaseSummary } from './ReleaseSummary'
 import { PRIMARY_CTA_CLASSES, SECTION_HEADER_CLASSES } from './styles'
+
+// Lazy-loaded: the panel lives inside a collapsed <details>, so the JS isn't
+// needed for first paint. Null fallback is fine — never user-visible.
+const LocalFirmwareInput = lazy(() =>
+  import('./LocalFirmwareInput').then((m) => ({ default: m.LocalFirmwareInput })),
+)
 
 interface IdleViewProps {
   onConnect: () => void
@@ -86,7 +91,9 @@ export const IdleView = ({
         />
       )}
 
-      <LocalFirmwareInput value={localFirmware} onChange={onLocalFirmwareChange} />
+      <Suspense fallback={null}>
+        <LocalFirmwareInput value={localFirmware} onChange={onLocalFirmwareChange} />
+      </Suspense>
 
       {localFirmware || !release ? null : <ReleaseSummary release={release} />}
 

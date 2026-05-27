@@ -33,6 +33,23 @@ export default defineConfig(({ mode }) => ({
     // don't leak source structure publicly. Dev keeps inline-style maps.
     sourcemap: mode === 'production' ? 'hidden' : true,
     chunkSizeWarningLimit: 250,
+    rollupOptions: {
+      output: {
+        // Split react + react-dom into their own long-cacheable chunk so the
+        // main entry stays focused on app code. Bundler is Rolldown (Vite 8),
+        // which only accepts the function form of manualChunks.
+        manualChunks: (id: string): string | undefined => {
+          if (
+            id.includes('/node_modules/react/') ||
+            id.includes('/node_modules/react-dom/') ||
+            id.includes('/node_modules/scheduler/')
+          ) {
+            return 'react'
+          }
+          return undefined
+        },
+      },
+    },
   },
   server: {
     port: 5180,
