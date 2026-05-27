@@ -1,0 +1,36 @@
+{
+  "_comment": "Generated from RealDash CAN XML — do not edit by hand. Source: canshift-studio/Life Racing/life_racing_default_can.xml",
+  "version": "1.0.0",
+  "protocol": "realdash-xml-import",
+  "canSpeedKbps": 500,
+  "signals": [
+    {
+      "name": "channel_37",
+      "canFrameId": "0x600",
+      "startByte": 0,
+      "byteLength": 2,
+      "bigEndian": true,
+      "signed": false,
+      "scale": 1,
+      "offset": 0,
+      "unit": "",
+      "min": 0,
+      "max": 65535,
+      "timeoutMs": 2000
+    },
+    {
+      "name": "channel_33",
+      "canFrameId": "0x600",
+      "startByte": 0,
+      "byteLength": 4,
+      "bigEndian": true,
+      "signed": false,
+      "scale": 0.001,
+      "offset": 0,
+      "unit": "",
+      "min": 0,
+      "max": 4294967.3,
+      "timeoutMs": 2000
+    }
+  ]
+}

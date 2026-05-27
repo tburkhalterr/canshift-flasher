@@ -1,0 +1,78 @@
+{
+  "_comment": "Generated from RealDash CAN XML — do not edit by hand. Source: canshift-studio/GM/gm_ls7_can.xml",
+  "version": "1.0.0",
+  "protocol": "realdash-xml-import",
+  "canSpeedKbps": 500,
+  "signals": [
+    {
+      "name": "channel_37",
+      "canFrameId": "0x110",
+      "startByte": 1,
+      "byteLength": 2,
+      "bigEndian": true,
+      "signed": false,
+      "scale": 0.25,
+      "offset": 0,
+      "unit": "",
+      "min": 0,
+      "max": 16383.75,
+      "timeoutMs": 2000
+    },
+    {
+      "name": "channel_42",
+      "canFrameId": "0x110",
+      "startByte": 4,
+      "byteLength": 1,
+      "bigEndian": true,
+      "signed": false,
+      "scale": 0.3937007874015748,
+      "offset": 0,
+      "unit": "",
+      "min": 0,
+      "max": 100.39,
+      "timeoutMs": 2000
+    },
+    {
+      "name": "channel_14",
+      "canFrameId": "0x510",
+      "startByte": 1,
+      "byteLength": 1,
+      "bigEndian": true,
+      "signed": false,
+      "scale": 1,
+      "offset": -40,
+      "unit": "C",
+      "min": -40,
+      "max": 215,
+      "timeoutMs": 2000
+    },
+    {
+      "name": "channel_27",
+      "canFrameId": "0x510",
+      "startByte": 2,
+      "byteLength": 1,
+      "bigEndian": true,
+      "signed": false,
+      "scale": 1,
+      "offset": -40,
+      "unit": "C",
+      "min": -40,
+      "max": 215,
+      "timeoutMs": 2000
+    },
+    {
+      "name": "channel_138",
+      "canFrameId": "0x510",
+      "startByte": 7,
+      "byteLength": 1,
+      "bigEndian": true,
+      "signed": false,
+      "scale": 1,
+      "offset": -40,
+      "unit": "C",
+      "min": -40,
+      "max": 215,
+      "timeoutMs": 2000
+    }
+  ]
+}

@@ -1,11 +1,11 @@
 [
   {
-    "slug": "maxxecu",
-    "name": "MaxxECU MTune",
-    "vendor": "MaxxECU",
+    "slug": "blank",
+    "name": "Skip — push my own profile via Studio",
+    "vendor": "—",
     "canSpeedKbps": 500,
-    "signalCount": 18,
-    "description": "MaxxECU MTune baseline broadcast at 0x370-0x375. Verify frame IDs and byte positions against your MTune CAN output config before relying on this in anger."
+    "signalCount": 0,
+    "description": "Empty signals.json — no signals decoded out of the box. Pick this if your ECU isn't in the catalog yet; configure signals in Studio after the dash boots."
   },
   {
     "slug": "obd2-mode01",
@@ -16,11 +16,251 @@
     "description": "Minimal OBD-II Mode 01 profile — RPM, speed, throttle, coolant/IAT temps, battery voltage. Request/response polling on 0x7DF/0x7E8. Works on most production ECUs that expose OBD-II."
   },
   {
-    "slug": "blank",
-    "name": "Skip — push my own profile via Studio",
-    "vendor": "—",
+    "slug": "adaptronic-adaptronic-can-full",
+    "name": "Adaptronic Full",
+    "vendor": "Adaptronic",
     "canSpeedKbps": 500,
-    "signalCount": 0,
-    "description": "Empty signals.json — no signals decoded out of the box. Pick this if your ECU isn't in the catalog yet; configure signals in Studio after the dash boots."
+    "signalCount": 780,
+    "description": "Imported from RealDash CAN descriptor — 780 signals, 1 warnings."
+  },
+  {
+    "slug": "adaptronic-adaptronic-can-simple",
+    "name": "Adaptronic Simple",
+    "vendor": "Adaptronic",
+    "canSpeedKbps": 500,
+    "signalCount": 132,
+    "description": "Imported from RealDash CAN descriptor — 132 signals, 1 warnings."
+  },
+  {
+    "slug": "aem-aem-22-unit1",
+    "name": "AEM 22 Unit1",
+    "vendor": "AEM",
+    "canSpeedKbps": 500,
+    "signalCount": 39,
+    "description": "Imported from RealDash CAN descriptor — 39 signals, 0 warnings."
+  },
+  {
+    "slug": "aem-aem-22-unit2",
+    "name": "AEM 22 Unit2",
+    "vendor": "AEM",
+    "canSpeedKbps": 500,
+    "signalCount": 39,
+    "description": "Imported from RealDash CAN descriptor — 39 signals, 0 warnings."
+  },
+  {
+    "slug": "bmw-bmw335i",
+    "name": "BMW 335i",
+    "vendor": "BMW",
+    "canSpeedKbps": 500,
+    "signalCount": 3,
+    "description": "Imported from RealDash CAN descriptor — 3 signals, 26 warnings."
+  },
+  {
+    "slug": "bmw-bmw-r1200gs-k25-can",
+    "name": "BMW R1200gs K25",
+    "vendor": "BMW",
+    "canSpeedKbps": 500,
+    "signalCount": 20,
+    "description": "Imported from RealDash CAN descriptor — 20 signals, 8 warnings."
+  },
+  {
+    "slug": "bmw-bmw-siemens-ms42-can",
+    "name": "BMW Siemens Ms42",
+    "vendor": "BMW",
+    "canSpeedKbps": 500,
+    "signalCount": 8,
+    "description": "Imported from RealDash CAN descriptor — 8 signals, 4 warnings."
+  },
+  {
+    "slug": "ecumaster-ecumaster-emublack",
+    "name": "Ecumaster Emublack",
+    "vendor": "Ecumaster",
+    "canSpeedKbps": 500,
+    "signalCount": 38,
+    "description": "Imported from RealDash CAN descriptor — 38 signals, 1 warnings."
+  },
+  {
+    "slug": "ecumaster-ecumaster-gps",
+    "name": "Ecumaster GPS",
+    "vendor": "Ecumaster",
+    "canSpeedKbps": 500,
+    "signalCount": 20,
+    "description": "Imported from RealDash CAN descriptor — 20 signals, 0 warnings."
+  },
+  {
+    "slug": "edelbrock-edelbrock-proflo4",
+    "name": "Edelbrock Proflo4",
+    "vendor": "Edelbrock",
+    "canSpeedKbps": 500,
+    "signalCount": 20,
+    "description": "Imported from RealDash CAN descriptor — 20 signals, 0 warnings."
+  },
+  {
+    "slug": "emtron-emtron-packet-1",
+    "name": "Emtron Packet 1",
+    "vendor": "Emtron",
+    "canSpeedKbps": 500,
+    "signalCount": 40,
+    "description": "Imported from RealDash CAN descriptor — 40 signals, 0 warnings."
+  },
+  {
+    "slug": "flagtronics-flagtronics-can-v0-4",
+    "name": "Flagtronics V0 4",
+    "vendor": "Flagtronics",
+    "canSpeedKbps": 500,
+    "signalCount": 37,
+    "description": "Imported from RealDash CAN descriptor — 37 signals, 1 warnings."
+  },
+  {
+    "slug": "gm-gm-ls-can",
+    "name": "GM LS",
+    "vendor": "GM",
+    "canSpeedKbps": 500,
+    "signalCount": 26,
+    "description": "Imported from RealDash CAN descriptor — 26 signals, 10 warnings."
+  },
+  {
+    "slug": "gm-gm-ls-can-full",
+    "name": "GM LS Full",
+    "vendor": "GM",
+    "canSpeedKbps": 500,
+    "signalCount": 22,
+    "description": "Imported from RealDash CAN descriptor — 22 signals, 164 warnings."
+  },
+  {
+    "slug": "gm-gm-ls7-can",
+    "name": "GM LS7",
+    "vendor": "GM",
+    "canSpeedKbps": 500,
+    "signalCount": 5,
+    "description": "Imported from RealDash CAN descriptor — 5 signals, 2 warnings."
+  },
+  {
+    "slug": "haltech-haltech-v2-can",
+    "name": "Haltech V2",
+    "vendor": "Haltech",
+    "canSpeedKbps": 500,
+    "signalCount": 110,
+    "description": "Imported from RealDash CAN descriptor — 110 signals, 0 warnings."
+  },
+  {
+    "slug": "haltech-haltech-v3-can",
+    "name": "Haltech V3",
+    "vendor": "Haltech",
+    "canSpeedKbps": 500,
+    "signalCount": 129,
+    "description": "Imported from RealDash CAN descriptor — 129 signals, 4 warnings."
+  },
+  {
+    "slug": "holley-holley-efi-can",
+    "name": "Holley EFI",
+    "vendor": "Holley",
+    "canSpeedKbps": 500,
+    "signalCount": 2,
+    "description": "Imported from RealDash CAN descriptor — 2 signals, 48 warnings."
+  },
+  {
+    "slug": "life-racing-life-racing-default-can",
+    "name": "Life Racing Default",
+    "vendor": "Life Racing",
+    "canSpeedKbps": 500,
+    "signalCount": 2,
+    "description": "Imported from RealDash CAN descriptor — 2 signals, 48 warnings."
+  },
+  {
+    "slug": "link-link-dash2pro",
+    "name": "Link Dash2pro",
+    "vendor": "Link",
+    "canSpeedKbps": 500,
+    "signalCount": 21,
+    "description": "Imported from RealDash CAN descriptor — 21 signals, 0 warnings."
+  },
+  {
+    "slug": "link-displaylink",
+    "name": "Link Displaylink",
+    "vendor": "Link",
+    "canSpeedKbps": 500,
+    "signalCount": 39,
+    "description": "Imported from RealDash CAN descriptor — 39 signals, 0 warnings."
+  },
+  {
+    "slug": "maxxecu-maxxecu-default-can",
+    "name": "MaxxECU Default (RealDash)",
+    "vendor": "MaxxECU",
+    "canSpeedKbps": 500,
+    "signalCount": 99,
+    "description": "Imported from RealDash CAN descriptor — 99 signals, 0 warnings."
+  },
+  {
+    "slug": "maxxecu",
+    "name": "MaxxECU MTune",
+    "vendor": "MaxxECU",
+    "canSpeedKbps": 500,
+    "signalCount": 18,
+    "description": "MaxxECU MTune baseline broadcast at 0x370-0x375. Verify frame IDs and byte positions against your MTune CAN output config before relying on this in anger."
+  },
+  {
+    "slug": "megasquirt-megasquirt-dashmode-can",
+    "name": "Megasquirt Dashmode",
+    "vendor": "Megasquirt",
+    "canSpeedKbps": 500,
+    "signalCount": 19,
+    "description": "Imported from RealDash CAN descriptor — 19 signals, 1 warnings."
+  },
+  {
+    "slug": "megasquirt-megasquirt-realtime-data-broadcasting-can",
+    "name": "Megasquirt Realtime Data Broadcasting",
+    "vendor": "Megasquirt",
+    "canSpeedKbps": 500,
+    "signalCount": 52,
+    "description": "Imported from RealDash CAN descriptor — 52 signals, 4 warnings."
+  },
+  {
+    "slug": "obr-obr-euro-8",
+    "name": "OBR Euro 8",
+    "vendor": "OBR",
+    "canSpeedKbps": 500,
+    "signalCount": 72,
+    "description": "Imported from RealDash CAN descriptor — 72 signals, 4 warnings."
+  },
+  {
+    "slug": "scs-delta-scs-delta",
+    "name": "SCS-Delta",
+    "vendor": "SCS-Delta",
+    "canSpeedKbps": 500,
+    "signalCount": 67,
+    "description": "Imported from RealDash CAN descriptor — 67 signals, 27 warnings."
+  },
+  {
+    "slug": "syvecs-syvecs-default-can",
+    "name": "Syvecs Default",
+    "vendor": "Syvecs",
+    "canSpeedKbps": 500,
+    "signalCount": 23,
+    "description": "Imported from RealDash CAN descriptor — 23 signals, 8 warnings."
+  },
+  {
+    "slug": "toyota-toyota-corolla-e150",
+    "name": "Toyota Corolla E150",
+    "vendor": "Toyota",
+    "canSpeedKbps": 500,
+    "signalCount": 23,
+    "description": "Imported from RealDash CAN descriptor — 23 signals, 3 warnings."
+  },
+  {
+    "slug": "tpms-tiremagic-tpms",
+    "name": "TPMS Sensors Tiremagic",
+    "vendor": "TPMS Sensors",
+    "canSpeedKbps": 500,
+    "signalCount": 28,
+    "description": "Imported from RealDash CAN descriptor — 28 signals, 0 warnings. TPMS pressure/temperature sensor broadcasts — not an ECU; pair this with another profile for engine data."
+  },
+  {
+    "slug": "turbolamik-turbolamik-tcu",
+    "name": "Turbolamik TCU",
+    "vendor": "Turbolamik",
+    "canSpeedKbps": 500,
+    "signalCount": 29,
+    "description": "Imported from RealDash CAN descriptor — 29 signals, 0 warnings."
   }
 ]

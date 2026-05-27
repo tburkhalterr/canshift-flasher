@@ -33,6 +33,14 @@ jobs:
       - name: Audit dependencies
         run: npm audit --omit=dev --audit-level=high
 
+      # `verify-profiles` re-runs `build-profiles.mjs` and diffs against
+      # committed output to catch "XML changed but JSON not regenerated" drift.
+      # Requires checking out the sibling canshift-studio repo, which lives
+      # outside this repo's GITHUB_TOKEN scope (private repo). For now this is
+      # a local-only check — contributors run `npm run verify-profiles` after
+      # touching XMLs in studio. See CANShift#1151 follow-up to wire this back
+      # via a PAT or by making studio public.
+
       - run: npm run typecheck
 
       - run: npm run lint

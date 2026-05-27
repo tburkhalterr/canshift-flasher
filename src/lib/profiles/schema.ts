@@ -62,7 +62,7 @@ const ColorRampSchema = z
   })
   .strict()
 
-const SignalDefSchema = z
+export const SignalDefSchema = z
   .object({
     name: z.string(),
     canFrameId: z
@@ -94,6 +94,8 @@ const SignalDefSchema = z
     message: 'min must be less than max',
     path: ['min'],
   })
+
+export type SignalDef = z.infer<typeof SignalDefSchema>
 
 const CanSpeedKbpsSchema = z.union([
   z.literal(125),
