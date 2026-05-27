@@ -38,6 +38,43 @@ const DISCONNECT_DURING_FLASH_MESSAGE =
   'USB connection lost mid-flash — re-plug the ESP32 and click Retry.'
 
 /**
+ * Shown after the Web Serial picker rejects with `NotFoundError` AND no
+ * already-authorised supported port is present. Covers both "user opened the
+ * picker, saw an empty list, and dismissed" and "user clicked Connect with
+ * nothing plugged in". Deliberately omits the word "cancelled" — the user
+ * needs the next action, not a recap of what just happened. See #110 (UX-3).
+ */
+const NO_SUPPORTED_PORT_MESSAGE =
+  'No supported ESP32 detected. Plug the ESP32 in via USB, then click Connect again — see Troubleshooting for cable / driver tips.'
+
+/** True when the port's USB IDs match one of the allowed bridges. */
+const isSupportedPort = (port: SerialPort): boolean => {
+  const info = port.getInfo()
+  return SUPPORTED_USB_FILTERS.some(
+    (filter) =>
+      filter.usbVendorId === info.usbVendorId && filter.usbProductId === info.usbProductId,
+  )
+}
+
+/**
+ * After `requestPort` rejects with `NotFoundError` we can't tell from the
+ * exception alone whether the user dismissed an empty picker (no supported
+ * device plugged in) or cancelled a populated one. Probe already-authorised
+ * ports: empty list means there's nothing the user could have selected, so
+ * show a hint; non-empty means a real cancel — stay silent. See #110.
+ */
+const hasAuthorisedSupportedPort = async (): Promise<boolean> => {
+  try {
+    const ports = await navigator.serial.getPorts()
+    return ports.some(isSupportedPort)
+  } catch {
+    // `getPorts` shouldn't throw in practice, but treat any failure as
+    // "we don't know" and prefer the silent path (current behaviour).
+    return true
+  }
+}
+
+/**
  * Hard cap on the in-memory log buffer. esptool can emit a few hundred KiB
  * of progress lines on a verbose stub; without a cap a stuck retry loop
  * grows the buffer unboundedly and starves React re-renders. 128 KiB is
@@ -262,8 +299,17 @@ export const useFlasher = (): FlasherStatus & FlasherActions => {
         setStatus((prev) => (prev.state === 'ready' ? { ...prev, chipInfo: chip } : prev))
       })
     } catch (err) {
-      // User cancelled the picker — stay in current state, no error UI.
-      if (err instanceof DOMException && err.name === 'NotFoundError') return
+      // Web Serial collapses two very different outcomes into the same
+      // `NotFoundError`: (a) user cancelled a populated picker, and (b) the
+      // picker had nothing supported to show. Disambiguate via `getPorts`:
+      // if any authorised supported port exists, this was a real cancel —
+      // stay silent. Otherwise hint the user toward plugging the ESP32 in.
+      if (err instanceof DOMException && err.name === 'NotFoundError') {
+        const hasAuthorised = await hasAuthorisedSupportedPort()
+        if (hasAuthorised) return
+        setStatus((prev) => ({ ...prev, errorMessage: NO_SUPPORTED_PORT_MESSAGE }))
+        return
+      }
       const message = err instanceof Error ? err.message : 'Failed to open port'
       setStatus((prev) => ({ ...prev, errorMessage: message }))
     }

@@ -172,11 +172,44 @@ describe('useFlasher state machine', () => {
     })
   })
 
-  it('stays in idle (no error UI) when the user cancels the picker', async () => {
+  it('stays silent (no error UI) when the user cancels a populated picker', async () => {
+    // Two supported ports are already authorised — picker had something to
+    // show, so NotFoundError must be a real cancel. Silent path. See #110.
+    // Two ports (not one) keep `useAutoConnect` from auto-promoting to ready
+    // so we can still observe that `selectPort` itself produced no error.
+    // Two distinct supported bridges so the auto-connect helper (which
+    // only promotes when exactly one port is available) leaves the hook
+    // in `idle` and `selectPort` is the only thing under test. IDs mirror
+    // the CH340 + CH9102 entries in `SUPPORTED_USB_FILTERS`.
+    const portA = makePort({ vendorId: 0x1a86, productId: 0x7523 })
+    const portB = makePort({ vendorId: 0x1a86, productId: 0x55d4 })
     installSerialMock({
       requestPort: vi
         .fn()
         .mockRejectedValue(new DOMException('No port selected', 'NotFoundError')),
+      getPorts: vi.fn().mockResolvedValue([portA, portB]),
+    })
+
+    const { result } = renderHook(() => useFlasher())
+
+    await act(async () => {
+      await result.current.selectPort()
+    })
+
+    expect(result.current.errorMessage).toBeNull()
+    expect(result.current.port).toBeNull()
+  })
+
+  it('shows the plug-it-in hint when the picker had no supported port to show', async () => {
+    // Web Serial fires the same NotFoundError whether the user cancelled a
+    // populated picker or dismissed an empty one. `getPorts` returning no
+    // supported entries disambiguates — surface a hint instead of silently
+    // doing nothing. See #110.
+    installSerialMock({
+      requestPort: vi
+        .fn()
+        .mockRejectedValue(new DOMException('No port selected', 'NotFoundError')),
+      getPorts: vi.fn().mockResolvedValue([]),
     })
 
     const { result } = renderHook(() => useFlasher())
@@ -186,8 +219,32 @@ describe('useFlasher state machine', () => {
     })
 
     expect(result.current.state).toBe('idle')
-    expect(result.current.errorMessage).toBeNull()
     expect(result.current.port).toBeNull()
+    expect(result.current.errorMessage).toBe(
+      'No supported ESP32 detected. Plug the ESP32 in via USB, then click Connect again — see Troubleshooting for cable / driver tips.',
+    )
+  })
+
+  it('stays silent when only unsupported ports are authorised and the user cancels', async () => {
+    // Mirror of the "cancelled populated picker" case but with only
+    // unsupported ports authorised. Under the new logic this is treated as
+    // "nothing supported to show" — hint surfaces. Guard against a future
+    // regression where unsupported ports get counted as "supported".
+    const unsupportedPort = makePort({ vendorId: 0xdead, productId: 0xbeef })
+    installSerialMock({
+      requestPort: vi
+        .fn()
+        .mockRejectedValue(new DOMException('No port selected', 'NotFoundError')),
+      getPorts: vi.fn().mockResolvedValue([unsupportedPort]),
+    })
+
+    const { result } = renderHook(() => useFlasher())
+
+    await act(async () => {
+      await result.current.selectPort()
+    })
+
+    expect(result.current.errorMessage).toContain('No supported ESP32 detected')
   })
 
   it('returns to idle without failure state when flash is cancelled mid-download', async () => {
