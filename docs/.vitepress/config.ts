@@ -10,7 +10,11 @@ export default defineConfig({
   titleTemplate: ':title — CANShift Flasher',
   description:
     'User documentation for the CANShift firmware flasher: workflow, ECU profiles, local firmware, and troubleshooting.',
-  appearance: 'dark',
+  // `true` = follow the user's OS preference on first load + persist toggle
+  // overrides in localStorage. Switched away from `'dark'` because the toggle
+  // behaviour with a forced default felt inconsistent — `true` ergonomically
+  // matches what users expect from a docs site theme switcher.
+  appearance: true,
   // Keep `.html` URLs (cleanUrls: false) so Vercel serves them as static
   // files without needing any rewrite rules. VitePress still produces a
   // working SPA at runtime — only the initial URL has the extension.
