@@ -31,6 +31,11 @@ interface SerialMock {
   removeEventListener: ReturnType<typeof vi.fn>
 }
 
+interface RegisteredListener {
+  event: string
+  handler: (event: Event) => void
+}
+
 function installSerialMock(overrides: Partial<SerialMock> = {}): SerialMock {
   const mock: SerialMock = {
     requestPort: vi.fn(),
@@ -45,6 +50,42 @@ function installSerialMock(overrides: Partial<SerialMock> = {}): SerialMock {
     writable: true,
   })
   return mock
+}
+
+/**
+ * Variant of `installSerialMock` that records add/removeEventListener calls
+ * so a test can synthesise a `disconnect` event mid-flash.
+ */
+function installSerialMockWithListeners(
+  overrides: Partial<SerialMock> = {},
+): { mock: SerialMock; listeners: RegisteredListener[] } {
+  const listeners: RegisteredListener[] = []
+  const mock: SerialMock = {
+    requestPort: vi.fn(),
+    getPorts: vi.fn().mockResolvedValue([]),
+    addEventListener: vi.fn((event: string, handler: (event: Event) => void) => {
+      listeners.push({ event, handler })
+    }),
+    removeEventListener: vi.fn((event: string, handler: (event: Event) => void) => {
+      const idx = listeners.findIndex((l) => l.event === event && l.handler === handler)
+      if (idx >= 0) listeners.splice(idx, 1)
+    }),
+    ...overrides,
+  }
+  Object.defineProperty(globalThis.navigator, 'serial', {
+    value: mock,
+    configurable: true,
+    writable: true,
+  })
+  return { mock, listeners }
+}
+
+const fireDisconnect = (listeners: RegisteredListener[], target: SerialPort): void => {
+  for (const { event, handler } of listeners) {
+    if (event === 'disconnect') {
+      handler({ target } as unknown as Event)
+    }
+  }
 }
 
 describe('useFlasher state machine', () => {
@@ -184,5 +225,110 @@ describe('useFlasher state machine', () => {
 
     expect(result.current.state).toBe('failed')
     expect(result.current.errorMessage).toBe('No port selected')
+  })
+
+  it('classifies typed errors into errorClass so FailedView can route the user', async () => {
+    const port = makePort()
+    installSerialMock({
+      requestPort: vi.fn().mockResolvedValue(port),
+    })
+
+    downloadSpy.mockResolvedValue({ bytes: new Uint8Array([1]), size: 1 })
+    // FlashIdError is one of the typed buckets in `classifyError`; use a
+    // generic Error here to assert the default fallback bucket is still
+    // attached to the FlasherStatus. `'unknown'` matches the regex-fallback
+    // path in classifyByMessage.
+    flashSpy.mockRejectedValue(new Error('something went sideways'))
+
+    const { result } = renderHook(() => useFlasher())
+
+    await act(async () => {
+      await result.current.selectPort()
+    })
+
+    await act(async () => {
+      await result.current.flash()
+    })
+
+    await waitFor(() => {
+      expect(result.current.state).toBe('failed')
+    })
+    expect(result.current.errorClass).toBe('unknown')
+  })
+
+  it('marks errorClass=disconnect when the port vanishes mid-flash', async () => {
+    const port = makePort()
+    const { listeners } = installSerialMockWithListeners({
+      requestPort: vi.fn().mockResolvedValue(port),
+    })
+
+    downloadSpy.mockResolvedValue({ bytes: new Uint8Array([1]), size: 1 })
+    // Hold `flashFirmware` pending so we can synthesise a disconnect event
+    // while the hook is still in `flashing`. The hook resolves the failed
+    // state from the disconnect handler — we never settle this promise.
+    flashSpy.mockImplementation(() => new Promise(() => { /* never resolves */ }))
+
+    const { result } = renderHook(() => useFlasher())
+
+    await act(async () => {
+      await result.current.selectPort()
+    })
+
+    // Kick off flash but don't await it — it never resolves on its own.
+    act(() => {
+      void result.current.flash()
+    })
+
+    // Wait until the disconnect guard has attached before firing the event.
+    await waitFor(() => {
+      expect(listeners.some((l) => l.event === 'disconnect')).toBe(true)
+    })
+
+    act(() => {
+      fireDisconnect(listeners, port)
+    })
+
+    await waitFor(() => {
+      expect(result.current.state).toBe('failed')
+    })
+    expect(result.current.errorClass).toBe('disconnect')
+    expect(result.current.errorMessage).toContain('USB connection lost')
+  })
+
+  it('clears errorClass back to null when a fresh flash starts', async () => {
+    const port = makePort()
+    installSerialMock({
+      requestPort: vi.fn().mockResolvedValue(port),
+    })
+
+    downloadSpy.mockResolvedValue({ bytes: new Uint8Array([1]), size: 1 })
+    flashSpy.mockRejectedValueOnce(new Error('first run blew up'))
+
+    const { result } = renderHook(() => useFlasher())
+
+    await act(async () => {
+      await result.current.selectPort()
+    })
+
+    await act(async () => {
+      await result.current.flash()
+    })
+
+    await waitFor(() => {
+      expect(result.current.state).toBe('failed')
+    })
+    expect(result.current.errorClass).toBe('unknown')
+
+    // Second attempt — `initFlashingStatus` should null out errorClass as
+    // soon as flashing begins, even before the next outcome resolves.
+    flashSpy.mockResolvedValueOnce(undefined)
+    await act(async () => {
+      await result.current.flash()
+    })
+
+    await waitFor(() => {
+      expect(result.current.state).toBe('success')
+    })
+    expect(result.current.errorClass).toBeNull()
   })
 })
