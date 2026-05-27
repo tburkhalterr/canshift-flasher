@@ -9,6 +9,8 @@
 // `api.github.com` already sets `Access-Control-Allow-Origin: *` on its REST
 // endpoints, so a direct `fetch()` works without a proxy.
 
+import { z } from 'zod'
+
 import { GITHUB_REPO } from '../constants'
 
 /** Firmware merged image — must be flashed at offset 0x0. */
@@ -94,31 +96,44 @@ function readPrereleaseFlag(): boolean {
   }
 }
 
-export interface ReleaseAsset {
-  url: string
-  sizeBytes: number
-  /**
-   * SHA-256 hex digest published by GitHub on the asset metadata (the `digest`
-   * field, formatted as `sha256:HEX`). Preferred over fetching `sha256Url`
-   * since it avoids a second request and works even when no `.sha256` sidecar
-   * was published alongside the binary.
-   */
-  expectedSha256: string | null
-  /** Legacy sidecar manifest URL — kept as a fallback for releases that
-   *  predate GitHub's `digest` field. */
-  sha256Url: string
-}
+/**
+ * Single source of truth for the persisted-cache entry shape. Any change here
+ * automatically invalidates stale localStorage entries on read via the
+ * `.safeParse()` gate in `readPersistedCache` — no manual cache-key version
+ * bumps required. See `LS_CACHE_KEY` below.
+ */
+export const ReleaseAssetSchema = z
+  .object({
+    url: z.string(),
+    sizeBytes: z.number(),
+    /**
+     * SHA-256 hex digest published by GitHub on the asset metadata (the `digest`
+     * field, formatted as `sha256:HEX`). Preferred over fetching `sha256Url`
+     * since it avoids a second request and works even when no `.sha256` sidecar
+     * was published alongside the binary.
+     */
+    expectedSha256: z.string().nullable(),
+    /** Legacy sidecar manifest URL — kept as a fallback for releases that
+     *  predate GitHub's `digest` field. */
+    sha256Url: z.string(),
+  })
+  .strict()
 
-export interface Release {
-  version: string
-  tag: string
-  publishedAt: string
-  notes: string
-  prerelease: boolean
-  firmwareAsset: ReleaseAsset | null
-  spiffsAsset: ReleaseAsset | null
-  htmlUrl: string
-}
+export const ReleaseSchema = z
+  .object({
+    version: z.string(),
+    tag: z.string(),
+    publishedAt: z.string(),
+    notes: z.string(),
+    prerelease: z.boolean(),
+    firmwareAsset: ReleaseAssetSchema.nullable(),
+    spiffsAsset: ReleaseAssetSchema.nullable(),
+    htmlUrl: z.string(),
+  })
+  .strict()
+
+export type ReleaseAsset = z.infer<typeof ReleaseAssetSchema>
+export type Release = z.infer<typeof ReleaseSchema>
 
 /**
  * Trimmed release metadata used by the Advanced (recovery) panel's version
@@ -282,61 +297,114 @@ let cachedFullPromise: Promise<Release[]> | null = null
  * render the UI. Stale-while-revalidate: a cached entry is returned immediately
  * even past its TTL, and a background refresh updates the cache for next time.
  */
-// `v5` invalidates any caches written before SEC-001/SEC-002 hardening —
-// entries persisted under earlier keys were never validated against the
-// asset-host allowlist, so we drop them unconditionally on first load.
-// `v6` invalidates `v5` caches written before `github.com` was added to the
-// allowlist — those entries had their assets filtered out by the over-strict
-// `isAsset` URL check, leaving `firmwareAsset: null`.
-const LS_CACHE_KEY = 'canshift-flasher.releases.v6'
+/**
+ * Single fixed key — no version suffix. Shape changes are caught by the
+ * `PersistedCacheSchema.safeParse()` gate in `readPersistedCache`, which
+ * drops mismatched entries automatically. Previously this was bumped by
+ * hand (v1 → v6) every time `Release` / `ReleaseAsset` evolved.
+ */
+const LS_CACHE_KEY = 'canshift-flasher.releases'
+
+/**
+ * One-shot cleanup of legacy versioned cache keys (v1..v6) written by older
+ * builds. Safe to drop after a few release cycles once existing users have
+ * rotated through the new schema-driven key at least once.
+ */
+const LEGACY_LS_CACHE_KEYS: readonly string[] = [
+  'canshift-flasher.releases.v1',
+  'canshift-flasher.releases.v2',
+  'canshift-flasher.releases.v3',
+  'canshift-flasher.releases.v4',
+  'canshift-flasher.releases.v5',
+  'canshift-flasher.releases.v6',
+]
+
+let legacyKeysPurged = false
+
+const purgeLegacyCacheKeys = (): void => {
+  if (legacyKeysPurged) return
+  legacyKeysPurged = true
+  if (typeof localStorage === 'undefined') return
+  for (const key of LEGACY_LS_CACHE_KEYS) {
+    try {
+      localStorage.removeItem(key)
+    } catch {
+      /* ignore quota / private-mode failures */
+    }
+  }
+}
+
 /** 10 minutes — short enough that a release ships quickly, long enough to
  *  shield casual reloads from the 60 req/h anon rate limit. */
 const LS_CACHE_TTL_MS = 10 * 60 * 1000
 
-interface PersistedCache {
-  fetchedAt: number
-  releases: Release[]
-}
+/**
+ * Persisted-cache shape — wraps the live `Release[]` schema with a
+ * `fetchedAt` epoch. Any change to `ReleaseSchema` / `ReleaseAssetSchema`
+ * flows through here and invalidates stale entries automatically on read.
+ */
+const PersistedCacheSchema = z
+  .object({
+    fetchedAt: z.number(),
+    releases: z.array(ReleaseSchema),
+  })
+  .strict()
+
+type PersistedCache = z.infer<typeof PersistedCacheSchema>
 
 /**
  * SEC-001: every persisted asset URL must still resolve to an allowlisted
  * host. A hostile cache entry (XSS, shared machine, malicious extension) is
- * dropped wholesale rather than partially trusted.
+ * dropped wholesale rather than partially trusted. Schema validation handles
+ * the shape; this check enforces the host allowlist on top of it.
  */
 const isCachedAssetSafe = (asset: ReleaseAsset | null): boolean => {
   if (asset === null) return true
-  if (typeof asset !== 'object') return false
-  if (typeof asset.url !== 'string' || !isAllowedAssetUrl(asset.url)) return false
-  if (typeof asset.sha256Url !== 'string' || !isAllowedAssetUrl(asset.sha256Url)) return false
+  if (!isAllowedAssetUrl(asset.url)) return false
+  if (!isAllowedAssetUrl(asset.sha256Url)) return false
   return true
 }
 
 const readPersistedCache = (): PersistedCache | null => {
+  purgeLegacyCacheKeys()
   if (typeof localStorage === 'undefined') return null
+  let raw: string | null
   try {
-    const raw = localStorage.getItem(LS_CACHE_KEY)
-    if (raw === null) return null
-    const parsed = JSON.parse(raw) as unknown
-    if (typeof parsed !== 'object' || parsed === null) return null
-    const obj = parsed as Record<string, unknown>
-    if (typeof obj.fetchedAt !== 'number' || !Array.isArray(obj.releases)) return null
-    const releases = obj.releases as Release[]
-    for (const release of releases) {
-      if (!isCachedAssetSafe(release.firmwareAsset) || !isCachedAssetSafe(release.spiffsAsset)) {
-        // Single bad entry poisons the whole cache — drop it and let the
-        // next call refetch from the network.
-        try {
-          localStorage.removeItem(LS_CACHE_KEY)
-        } catch {
-          /* ignore quota / private-mode failures */
-        }
-        return null
-      }
-    }
-    return { fetchedAt: obj.fetchedAt, releases }
+    raw = localStorage.getItem(LS_CACHE_KEY)
   } catch {
     return null
   }
+  if (raw === null) return null
+  let json: unknown
+  try {
+    json = JSON.parse(raw)
+  } catch {
+    return null
+  }
+  const result = PersistedCacheSchema.safeParse(json)
+  if (!result.success) {
+    // Schema mismatch — old shape, garbage JSON, or anything else. Drop the
+    // entry so the next call refetches from the network.
+    try {
+      localStorage.removeItem(LS_CACHE_KEY)
+    } catch {
+      /* ignore quota / private-mode failures */
+    }
+    return null
+  }
+  for (const release of result.data.releases) {
+    if (!isCachedAssetSafe(release.firmwareAsset) || !isCachedAssetSafe(release.spiffsAsset)) {
+      // Single bad entry poisons the whole cache — drop it and let the
+      // next call refetch from the network.
+      try {
+        localStorage.removeItem(LS_CACHE_KEY)
+      } catch {
+        /* ignore quota / private-mode failures */
+      }
+      return null
+    }
+  }
+  return result.data
 }
 
 const writePersistedCache = (releases: Release[]): void => {
@@ -353,11 +421,19 @@ const writePersistedCache = (releases: Release[]): void => {
 export const __resetReleaseCacheForTests = (): void => {
   cachedRecentPromise = null
   cachedFullPromise = null
+  legacyKeysPurged = false
   if (typeof localStorage !== 'undefined') {
     try {
       localStorage.removeItem(LS_CACHE_KEY)
     } catch {
       /* ignore */
+    }
+    for (const key of LEGACY_LS_CACHE_KEYS) {
+      try {
+        localStorage.removeItem(key)
+      } catch {
+        /* ignore */
+      }
     }
   }
 }
